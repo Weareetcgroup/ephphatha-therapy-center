@@ -1,0 +1,19 @@
+EPHPHATHA THERAPY CENTER V2 — APPLY TO EXISTING GITHUB DESKTOP REPOSITORY
+
+1. Keep your existing local folder: ephphatha-therapy-center
+2. Extract this ZIP somewhere else.
+3. Open the extracted folder "Ephphatha-V2-Upgrade".
+4. Select EVERYTHING inside it and copy it into your existing ephphatha-therapy-center repository folder.
+5. Windows will ask whether to replace existing files. Choose Replace for:
+   - js/content.js
+   - js/site.js
+   The remaining V2 files are new additions.
+6. Return to GitHub Desktop. You should see the V2 files as changes.
+7. Summary: Ephphatha V2 portal and admin platform
+8. Commit to main.
+9. Push origin.
+10. Cloudflare Pages will redeploy automatically.
+
+Do NOT delete your existing index.html, about.html, services.html, contact.html, online-therapy.html, privacy.html, assets folder or css/styles.css. This ZIP is an upgrade/overlay, not a replacement site.
+
+After the Cloudflare deployment succeeds, create and bind the D1 database using SETUP_V2.md. Until D1 is connected, the public website will continue to work, while portal.html will show a database setup message.
