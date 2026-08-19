@@ -22,14 +22,14 @@ window.EPH_CONFIG = {
   faqs:[
     {q:"How do I know which therapy my child needs?",a:"You do not need to decide that before contacting us. Start by sharing your concern. A clinician can recommend an assessment or the most appropriate next step based on the child's needs."},
     {q:"Do you provide both in-clinic and online sessions?",a:"Ephphatha provides in-clinic services and can offer online consultation or selected therapy services where clinically suitable. Contact the center to confirm the best format for your needs."},
-    {q:"How long is a therapy session?",a:"Session duration can be configured by the center for each service. The current standard is 30 minutes unless a different duration is selected for that service or care plan."},
+    {q:"How long is a therapy session?",a:"Session duration is configured by the center for each service. The current standard is 30 minutes unless a different duration is selected for that service or care plan."},
     {q:"Will parents receive guidance for home practice?",a:"Yes. Therapy works best when useful strategies carry into daily life, so home guidance and caregiver collaboration may be included as part of the plan."},
     {q:"Do you work only with children?",a:"No. Ephphatha supports children and also offers selected communication-related services for adults. Contact the center with the specific concern so the team can confirm suitability."}
   ]
 };
 (()=>{
   const s=document.createElement('script');
-  s.src='js/design-runtime.js?v=6.0';
+  s.src='js/design-runtime.js?v=6.1';
   s.async=false;
   document.head.appendChild(s);
 })();
