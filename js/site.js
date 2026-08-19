@@ -1,13 +1,17 @@
 (function(){
-document.documentElement.dataset.ephPublicRuntime='v5.3';
+document.documentElement.dataset.ephPublicRuntime='v5.5';
 const cfg=window.EPH_CONFIG||{},fallback=cfg.contact||{};
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
 const esc=s=>String(s??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const SUPA='https://plvjkqmmlkmsxlufotic.supabase.co';
 const KEY='sb_publishable_x-_JzpcD7uAybNZ6-XLRvQ_L6dBb71V';
-const H={apikey:KEY,Authorization:`Bearer ${KEY}`};
-async function rest(path){const r=await fetch(`${SUPA}/rest/v1/${path}`,{headers:H});if(!r.ok)throw new Error(await r.text());return r.json();}
-const text=(el,val)=>{if(el&&val!==undefined&&val!==null&&String(val)!=='')el.textContent=String(val);};
+const H={apikey:KEY,'content-type':'application/json'};
+async function getPublicBundle(){
+  const r=await fetch(`${SUPA}/rest/v1/rpc/get_public_site_bundle`,{method:'POST',headers:H,body:'{}',cache:'no-store'});
+  if(!r.ok)throw new Error(`Public site data request failed (${r.status}): ${await r.text()}`);
+  return r.json();
+}
+const text=(el,val)=>{if(el&&val!==undefined&&val!==null)el.textContent=String(val);};
 const setMeta=(name,val)=>{if(!val)return;let el=document.querySelector(`meta[name="${name}"]`);if(!el){el=document.createElement('meta');el.name=name;document.head.appendChild(el);}el.content=val;};
 
 if(!document.querySelector('link[data-v2-public]')){const l=document.createElement('link');l.rel='stylesheet';l.href='css/v2-public.css';l.dataset.v2Public='1';document.head.appendChild(l);}
@@ -79,13 +83,12 @@ if(isContact){
   }
 }
 
-Promise.all([
-  rest('settings?select=key,value'),
-  rest('services?select=id,slug,title,summary,duration_minutes,mode,detail_intro,detail_bullets,cta_text,sort_order&active=eq.true&order=sort_order.asc,title.asc'),
-  rest('therapists?select=id,full_name,title,qualifications,bio,photo_url&active=eq.true&order=full_name.asc'),
-  rest('content_items?select=id,type,title,body,image_url,meta,sort_order&active=eq.true&order=type.asc,sort_order.asc')
-]).then(([settingRows,serviceRows,therapistRows,items])=>{
-  const s=Object.fromEntries(settingRows.map(x=>[x.key,x.value]));
+getPublicBundle().then(bundle=>{
+  const s=bundle?.settings||{};
+  document.documentElement.dataset.ephPublicData='connected';
+  const serviceRows=Array.isArray(bundle?.services)?bundle.services:[];
+  const therapistRows=Array.isArray(bundle?.therapists)?bundle.therapists:[];
+  const items=Array.isArray(bundle?.content_items)?bundle.content_items:[];
   const center=s.center_profile||{},theme=s.theme||{},ann=s.announcement||{},navigation=s.navigation||{},media=s.brand_media||{},seo=s.seo_settings||{},footer=s.footer_content||{},galleryContent=s.gallery_content||{};
 
   if(theme.primary)document.documentElement.style.setProperty('--teal',theme.primary);
@@ -256,5 +259,5 @@ Promise.all([
     const wa=String(center.whatsapp||center.phone_primary||'').replace(/\D/g,'');
     window.open(`https://wa.me/${wa}?text=${encodeURIComponent(lines.join('\n'))}`,'_blank','noopener');
   };
-}).catch(err=>console.warn('Ephphatha dynamic content unavailable:',err));
+}).catch(err=>{console.error('Ephphatha public data feed unavailable:',err);document.documentElement.dataset.ephPublicData='error';});
 })();

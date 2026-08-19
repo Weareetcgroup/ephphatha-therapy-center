@@ -30,6 +30,7 @@ const listText=v=>Array.isArray(v)?v.join('\n'):'';
 const pairText=v=>Array.isArray(v)?v.map(x=>`${x?.title||''} | ${x?.text||''}`).join('\n'):'';
 const parseList=v=>String(v||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
 const parsePairs=v=>String(v||'').split(/\r?\n/).map(line=>{const i=line.indexOf('|');return i<0?{title:line.trim(),text:''}:{title:line.slice(0,i).trim(),text:line.slice(i+1).trim()};}).filter(x=>x.title||x.text);
+const normalizeEmbedInput=v=>{const s=String(v||'').trim();if(!s)return '';const m=s.match(/<iframe[^>]+src=[\"']([^\"']+)[\"']/i);return (m?m[1]:s).replace(/&amp;/g,'&');};
 
 function installCmsPanels(){
   const website=$('[data-view-panel="website"]');
@@ -40,6 +41,10 @@ function installCmsPanels(){
   const wrap=document.createElement('div');
   wrap.id='eph-cms-panels';
   wrap.innerHTML=`
+  <div class="panel" style="margin-bottom:20px">
+    <div class="page-head" style="margin-bottom:10px"><div><h3>Public website data feed</h3><p>Admin changes publish directly from Supabase; no Cloudflare redeploy is required for normal content changes.</p></div><button type="button" class="btn btn-secondary btn-sm" id="cms-check-feed">Check now</button></div>
+    <div id="cms-feed-status" class="notice">Checking public website data feed…</div>
+  </div>
   <div class="panel" style="margin-bottom:20px">
     <div class="page-head" style="margin-bottom:16px"><div><h3>Center details & exact location</h3><p>Change the public business details without touching GitHub. The postal address and Google Maps pin are separate.</p></div></div>
     <form id="cms-center-form" class="form-grid">
@@ -54,7 +59,7 @@ function installCmsPanels(){
       <div class="field full"><label>Displayed center address</label><textarea name="display_address"></textarea></div>
       <div class="field full"><label>Locality / area label</label><input name="locality"></div>
       <div class="field full"><label>Exact Google Maps location link</label><input name="map_url" type="url" placeholder="https://maps.app.goo.gl/..."><small class="muted">All “Directions” links use this exact pin, independently of the displayed address.</small></div>
-      <div class="field full"><label>Google Maps embed URL (optional)</label><input name="map_embed_url" placeholder="Official Google Maps embed URL"><small class="muted">If blank, the Contact page shows a safe button to the exact pin instead of an incorrect embedded map.</small></div>
+      <div class="field full"><label>Google Maps embed URL or iframe code (optional)</label><input name="map_embed_url" placeholder="Paste the Google Maps embed URL or full iframe code"><small class="muted">For an exact graphical map: Google Maps → Share → Embed a map → Copy HTML, then paste it here. If blank, the site safely shows the exact-location button instead.</small></div>
       <div class="field full"><label>Map fallback label</label><input name="map_embed_query"></div>
       <div class="field full"><label>Instagram URL</label><input name="instagram_url" type="url"></div>
       <div class="field full"><button class="btn btn-primary">Save center details</button></div>
@@ -192,6 +197,19 @@ function installCmsPanels(){
   nodes.forEach(n=>first?website.insertBefore(n,first):website.appendChild(n));
 }
 
+async function checkPublicFeed(){
+  const el=$('#cms-feed-status');if(el)el.textContent='Checking public website data feed…';
+  try{
+    const {data,error}=await sb.rpc('get_public_site_bundle');if(error)throw error;
+    const b=Array.isArray(data)?data[0]:data;
+    const settings=b?.settings||{};
+    if(!settings.home_content||!settings.center_profile)throw new Error('Bundle is missing required website settings.');
+    const when=b?.generated_at?new Date(b.generated_at).toLocaleString('en-IN'):new Date().toLocaleString('en-IN');
+    if(el){el.className='notice good';el.textContent='Connected. Admin content is available to the public website. Checked '+when+'.';}
+    return true;
+  }catch(e){if(el){el.className='notice';el.textContent='Public website data feed error: '+String(e.message||e);}return false;}
+}
+
 async function loadCmsSettings(){
   const s=await getSettings();
   const center=s.center_profile||{};
@@ -250,7 +268,7 @@ function bindCmsForms(){
       phone_primary:String(d.phone_primary||'').trim(),phone_secondary:String(d.phone_secondary||'').trim(),
       whatsapp:String(d.whatsapp||'').replace(/\D/g,''),email:String(d.email||'').trim(),
       display_address:String(d.display_address||'').trim(),locality:String(d.locality||'').trim(),
-      map_url:String(d.map_url||'').trim(),map_embed_url:String(d.map_embed_url||'').trim(),
+      map_url:String(d.map_url||'').trim(),map_embed_url:normalizeEmbedInput(d.map_embed_url),
       map_embed_query:String(d.map_embed_query||'').trim(),instagram_url:String(d.instagram_url||'').trim()
     };
     try{await putSetting('center_profile',value);notice('Center details and exact map location saved.',true);}catch(x){notice(x.message);}
@@ -258,7 +276,7 @@ function bindCmsForms(){
   $('#cms-navigation-form').onsubmit=async e=>{
     e.preventDefault();const d=fo(e.target);
     const value={home:d.home,services:d.services,about:d.about,online:d.online,contact:d.contact,book_cta:d.book_cta,portal:d.portal,show_home:d.show_home==='1',show_services:d.show_services==='1',show_about:d.show_about==='1',show_online:d.show_online==='1',show_contact:d.show_contact==='1'};
-    try{await putSetting('navigation',value);notice('Navigation saved.',true);}catch(x){notice(x.message);}
+    try{await putSetting('navigation',value);notice('Navigation saved. It is live immediately on the public website.',true);checkPublicFeed();}catch(x){notice(x.message);}
   };
   $('#cms-copy-form').onsubmit=async e=>{
     e.preventDefault();const d=fo(e.target);
@@ -360,7 +378,7 @@ async function loadVisibilityManager(){
       await putSetting('show_gallery',d.show_gallery==='1');
       await putSetting('show_testimonials',d.show_testimonials==='1');
       await putSetting('show_programs',d.show_programs==='1');
-      notice('Announcement and public section visibility saved.',true);
+      notice('Announcement and public section visibility saved. They are live immediately.',true);checkPublicFeed();
     }catch(x){notice(x.message);}
   };
 }
@@ -399,7 +417,7 @@ async function initGalleryManager(){
     list.querySelectorAll('[data-gallery-edit]').forEach(b=>b.onclick=()=>{const x=rows.find(r=>String(r.id)===b.dataset.galleryEdit);if(!x)return;form.elements.id.value=x.id;form.elements.existing_image_url.value=x.image_url||'';form.elements.image_url.value=x.image_url||'';form.elements.title.value=x.title||'';form.elements.body.value=x.body||'';form.elements.sort_order.value=x.sort_order||0;form.elements.active.value=x.active?'1':'0';form.scrollIntoView({behavior:'smooth'});});
     list.querySelectorAll('[data-gallery-delete]').forEach(b=>b.onclick=async()=>{if(!confirm('Delete this gallery item?'))return;const x=rows.find(r=>String(r.id)===b.dataset.galleryDelete);const r=await sb.from('content_items').delete().eq('id',Number(b.dataset.galleryDelete));if(r.error)return notice(r.error.message);if(x?.image_url?.includes('/storage/v1/object/public/website-media/')){const p=x.image_url.split('/storage/v1/object/public/website-media/')[1];if(p)await sb.storage.from('website-media').remove([decodeURIComponent(p)]);}await reload();notice('Gallery item deleted.',true);});
   }
-  settings.onsubmit=async e=>{e.preventDefault();const d=fo(settings);try{await putSetting('gallery_content',{kicker:String(d.kicker||'').trim()||'Inside Ephphatha',heading:String(d.heading||'').trim()||'Our center & activities.'});await putSetting('show_gallery',d.show==='1');notice('Gallery section settings saved.',true);}catch(x){notice(x.message);}};
+  settings.onsubmit=async e=>{e.preventDefault();const d=fo(settings);try{await putSetting('gallery_content',{kicker:String(d.kicker||'').trim()||'Inside Ephphatha',heading:String(d.heading||'').trim()||'Our center & activities.'});await putSetting('show_gallery',d.show==='1');notice('Gallery section settings saved. They are live immediately.',true);checkPublicFeed();}catch(x){notice(x.message);}};
   form.onsubmit=async e=>{
     e.preventDefault();const d=fo(form);let image=String(d.image_url||d.existing_image_url||'').trim();const file=form.elements.image_file.files?.[0];
     try{
@@ -407,7 +425,7 @@ async function initGalleryManager(){
       if(!image)throw new Error('Choose an image file or enter an image URL.');
       const row={type:'gallery',title:String(d.title||'').trim(),body:String(d.body||'').trim(),image_url:image,sort_order:Number(d.sort_order||0),active:d.active==='1'};
       let r;if(d.id)r=await sb.from('content_items').update(row).eq('id',Number(d.id));else r=await sb.from('content_items').insert(row);if(r.error)throw r.error;
-      form.reset();form.elements.sort_order.value=0;form.elements.active.value='1';form.elements.id.value='';form.elements.existing_image_url.value='';await reload();notice('Gallery image saved. It will appear on the public home page when Gallery is enabled.',true);
+      form.reset();form.elements.sort_order.value=0;form.elements.active.value='1';form.elements.id.value='';form.elements.existing_image_url.value='';await reload();notice('Gallery image saved. It appears on the public home page immediately when Gallery is enabled.',true);checkPublicFeed();
     }catch(x){notice(x.message);}
   };
   $('#gallery-refresh').onclick=reload;await reload();
@@ -418,9 +436,10 @@ async function start(){
     installCmsPanels();
     installVisibilityManager();
     installGalleryManager();
-    await Promise.all([loadCmsSettings(),enhanceServices(),loadVisibilityManager(),initGalleryManager()]);
+    await Promise.all([loadCmsSettings(),enhanceServices(),loadVisibilityManager(),initGalleryManager(),checkPublicFeed()]);
     bindCmsForms();
-    document.documentElement.dataset.ephCms='v5.2';
+    if($('#cms-check-feed'))$('#cms-check-feed').onclick=checkPublicFeed;
+    document.documentElement.dataset.ephCms='v5.5';
   }catch(e){notice('Admin CMS could not initialize: '+e.message);}
 }
 start();
