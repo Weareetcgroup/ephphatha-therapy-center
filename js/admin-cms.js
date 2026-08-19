@@ -309,8 +309,8 @@ async function enhanceServices(){
   $('#services-list').onclick=e=>{
     const b=e.target.closest('[data-cms-service]');if(!b)return;
     const s=cache.find(x=>String(x.id)===b.dataset.cmsService);if(!s)return;
-    f.id.value=s.id;f.title.value=s.title;f.duration_minutes.value=s.duration_minutes;f.mode.value=s.mode;f.summary.value=s.summary||'';
-    f.detail_intro.value=s.detail_intro||'';f.detail_bullets.value=Array.isArray(s.detail_bullets)?s.detail_bullets.join('\n'):'';f.cta_text.value=s.cta_text||'Ask about this service';f.sort_order.value=s.sort_order||0;f.active.value=s.active?'1':'0';
+    f.elements.id.value=s.id;f.elements.title.value=s.title;f.elements.duration_minutes.value=s.duration_minutes;f.elements.mode.value=s.mode;f.elements.summary.value=s.summary||'';
+    f.elements.detail_intro.value=s.detail_intro||'';f.elements.detail_bullets.value=Array.isArray(s.detail_bullets)?s.detail_bullets.join('\n'):'';f.elements.cta_text.value=s.cta_text||'Ask about this service';f.elements.sort_order.value=s.sort_order||0;f.elements.active.value=s.active?'1':'0';
     f.scrollIntoView({behavior:'smooth'});
   };
   f.onsubmit=async e=>{
@@ -321,18 +321,106 @@ async function enhanceServices(){
       if(d.id)r=await sb.from('services').update(row).eq('id',Number(d.id));
       else {row.slug=row.title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');r=await sb.from('services').insert(row);}
       if(r.error)throw r.error;
-      f.reset();f.duration_minutes.value=30;f.active.value='1';f.sort_order.value=0;f.cta_text.value='Ask about this service';
+      f.reset();f.elements.duration_minutes.value=30;f.elements.active.value='1';f.elements.sort_order.value=0;f.elements.cta_text.value='Ask about this service';
       await reload();notice('Service saved. Future appointment slots use the saved duration.',true);
     }catch(x){notice(x.message);}
   };
 }
 
+
+function installVisibilityManager(){
+  const website=$('[data-view-panel="website"]'); if(!website||$('#cms-visibility-form'))return;
+  const old=$('#content-settings-form')?.closest('.panel'); if(old)old.style.display='none';
+  const panel=document.createElement('div');panel.className='panel';panel.style.marginBottom='20px';
+  panel.innerHTML=`<div class="page-head" style="margin-bottom:16px"><div><h3>Announcement & public sections</h3><p>Control what appears on the public site. Announcement text is required when enabled.</p></div></div>
+  <form id="cms-visibility-form" class="form-grid">
+    <div class="field full"><label>Announcement message</label><input name="announcement_text" placeholder="Welcome to Ephphatha Therapy Center."></div>
+    <div class="field"><label>Show announcement</label><select name="announcement_enabled"><option value="0">No</option><option value="1">Yes</option></select></div>
+    <div class="field"><label>Show gallery</label><select name="show_gallery"><option value="1">Yes</option><option value="0">No</option></select></div>
+    <div class="field"><label>Show testimonials</label><select name="show_testimonials"><option value="1">Yes</option><option value="0">No</option></select></div>
+    <div class="field"><label>Show programs</label><select name="show_programs"><option value="1">Yes</option><option value="0">No</option></select></div>
+    <div class="field full"><button class="btn btn-primary">Save announcement & visibility</button></div>
+  </form>`;
+  const wrap=$('#eph-cms-panels'); if(wrap)wrap.insertBefore(panel,wrap.firstChild); else website.insertBefore(panel,website.firstChild?.nextSibling||null);
+}
+
+async function loadVisibilityManager(){
+  const f=$('#cms-visibility-form');if(!f)return;
+  const s=await getSettings(),ann=s.announcement||{};
+  f.announcement_text.value=ann.text||'Welcome to Ephphatha Therapy Center.';
+  f.announcement_enabled.value=ann.enabled?'1':'0';
+  f.show_gallery.value=s.show_gallery===false?'0':'1';
+  f.show_testimonials.value=s.show_testimonials===false?'0':'1';
+  f.show_programs.value=s.show_programs===false?'0':'1';
+  f.onsubmit=async e=>{
+    e.preventDefault();const d=fo(f),enabled=d.announcement_enabled==='1',text=String(d.announcement_text||'').trim();
+    if(enabled&&!text)return notice('Enter announcement text before turning the announcement on.');
+    try{
+      await putSetting('announcement',{enabled,text});
+      await putSetting('show_gallery',d.show_gallery==='1');
+      await putSetting('show_testimonials',d.show_testimonials==='1');
+      await putSetting('show_programs',d.show_programs==='1');
+      notice('Announcement and public section visibility saved.',true);
+    }catch(x){notice(x.message);}
+  };
+}
+
+function installGalleryManager(){
+  const nav=$('.side-nav'),app=$('.app-content');if(!nav||!app)return;
+  let btn=nav.querySelector('[data-view="gallery"]');
+  if(!btn){
+    btn=document.createElement('button');btn.dataset.view='gallery';btn.textContent='Gallery & Media';
+    const contentBtn=nav.querySelector('[data-view="content"]');nav.insertBefore(btn,contentBtn||nav.querySelector('a'));
+  }
+  let sec=$('[data-view-panel="gallery"]');
+  if(!sec){
+    sec=document.createElement('section');sec.className='view';sec.dataset.viewPanel='gallery';
+    sec.innerHTML=`<div class="page-head"><div><h2>Gallery & Media</h2><p>Upload center photos and control the public Gallery section.</p></div><button class="btn btn-secondary" id="gallery-refresh">Refresh</button></div>
+    <div class="panel" style="margin-bottom:20px"><h3>Gallery section</h3><form id="gallery-settings-form" class="form-grid"><div class="field"><label>Section label</label><input name="kicker" value="Inside Ephphatha"></div><div class="field"><label>Section heading</label><input name="heading" value="Our center & activities."></div><div class="field"><label>Show on website</label><select name="show"><option value="1">Yes</option><option value="0">No</option></select></div><div class="field" style="align-self:end"><button class="btn btn-primary">Save gallery settings</button></div></form></div>
+    <div class="grid-2"><div class="panel"><h3>Add / edit gallery image</h3><form id="gallery-item-form" class="form-grid"><input type="hidden" name="id"><input type="hidden" name="existing_image_url"><div class="field full"><label>Image</label><input name="image_file" type="file" accept="image/png,image/jpeg,image/webp,image/gif"><small class="muted">PNG/JPG/WebP/GIF, max 5 MB.</small></div><div class="field full"><label>Or image URL</label><input name="image_url" type="url" placeholder="https://..."></div><div class="field full"><label>Title</label><input name="title" placeholder="Therapy activity / center space"></div><div class="field full"><label>Caption</label><textarea name="body"></textarea></div><div class="field"><label>Display order</label><input name="sort_order" type="number" value="0"></div><div class="field"><label>Visible</label><select name="active"><option value="1">Yes</option><option value="0">No</option></select></div><div class="field full"><button class="btn btn-primary">Save gallery image</button></div></form></div><div class="panel"><h3>Gallery library</h3><div id="gallery-list" class="list"></div></div></div>`;
+    app.appendChild(sec);
+  }
+  btn.onclick=()=>{
+    $$('[data-view]').forEach(x=>x.classList.toggle('active',x===btn));
+    $$('[data-view-panel]').forEach(x=>x.classList.toggle('active',x===sec));
+    if($('#admin-title'))$('#admin-title').textContent='Gallery & Media';
+    $('#app-side')?.classList.remove('open');
+  };
+}
+
+async function initGalleryManager(){
+  const form=$('#gallery-item-form'),settings=$('#gallery-settings-form'),list=$('#gallery-list');if(!form||!settings||!list)return;
+  async function reload(){
+    const [sr,gr]=await Promise.all([getSettings(),sb.from('content_items').select('*').eq('type','gallery').order('sort_order').order('id')]);
+    if(gr.error)throw gr.error;
+    const gc=sr.gallery_content||{};settings.kicker.value=gc.kicker||'Inside Ephphatha';settings.heading.value=gc.heading||'Our center & activities.';settings.show.value=sr.show_gallery===false?'0':'1';
+    const rows=gr.data||[];
+    list.innerHTML=rows.length?rows.map(x=>`<div class="patient-card" data-gallery-card="${x.id}">${x.image_url?`<img src="${esc(x.image_url)}" alt="" style="width:100%;max-width:240px;aspect-ratio:4/3;object-fit:cover;border-radius:14px;margin-bottom:10px">`:''}<strong>${esc(x.title||'Untitled image')}</strong><div class="muted">${esc(x.body||'')}</div><small>${x.active?'Visible':'Hidden'} · order ${Number(x.sort_order||0)}</small><div class="toolbar" style="margin-top:10px"><button type="button" class="btn btn-secondary btn-sm" data-gallery-edit="${x.id}">Edit</button><button type="button" class="btn btn-danger btn-sm" data-gallery-delete="${x.id}">Delete</button></div></div>`).join(''):'<div class="empty">No gallery images yet. Upload your first image on the left.</div>';
+    list.querySelectorAll('[data-gallery-edit]').forEach(b=>b.onclick=()=>{const x=rows.find(r=>String(r.id)===b.dataset.galleryEdit);if(!x)return;form.elements.id.value=x.id;form.elements.existing_image_url.value=x.image_url||'';form.elements.image_url.value=x.image_url||'';form.elements.title.value=x.title||'';form.elements.body.value=x.body||'';form.elements.sort_order.value=x.sort_order||0;form.elements.active.value=x.active?'1':'0';form.scrollIntoView({behavior:'smooth'});});
+    list.querySelectorAll('[data-gallery-delete]').forEach(b=>b.onclick=async()=>{if(!confirm('Delete this gallery item?'))return;const x=rows.find(r=>String(r.id)===b.dataset.galleryDelete);const r=await sb.from('content_items').delete().eq('id',Number(b.dataset.galleryDelete));if(r.error)return notice(r.error.message);if(x?.image_url?.includes('/storage/v1/object/public/website-media/')){const p=x.image_url.split('/storage/v1/object/public/website-media/')[1];if(p)await sb.storage.from('website-media').remove([decodeURIComponent(p)]);}await reload();notice('Gallery item deleted.',true);});
+  }
+  settings.onsubmit=async e=>{e.preventDefault();const d=fo(settings);try{await putSetting('gallery_content',{kicker:String(d.kicker||'').trim()||'Inside Ephphatha',heading:String(d.heading||'').trim()||'Our center & activities.'});await putSetting('show_gallery',d.show==='1');notice('Gallery section settings saved.',true);}catch(x){notice(x.message);}};
+  form.onsubmit=async e=>{
+    e.preventDefault();const d=fo(form);let image=String(d.image_url||d.existing_image_url||'').trim();const file=form.elements.image_file.files?.[0];
+    try{
+      if(file){if(file.size>5*1024*1024)throw new Error('Image must be 5 MB or smaller.');const safe=file.name.replace(/[^a-zA-Z0-9._-]/g,'-');const path=`gallery/${Date.now()}-${safe}`;const up=await sb.storage.from('website-media').upload(path,file,{upsert:false});if(up.error)throw up.error;image=sb.storage.from('website-media').getPublicUrl(path).data.publicUrl;}
+      if(!image)throw new Error('Choose an image file or enter an image URL.');
+      const row={type:'gallery',title:String(d.title||'').trim(),body:String(d.body||'').trim(),image_url:image,sort_order:Number(d.sort_order||0),active:d.active==='1'};
+      let r;if(d.id)r=await sb.from('content_items').update(row).eq('id',Number(d.id));else r=await sb.from('content_items').insert(row);if(r.error)throw r.error;
+      form.reset();form.elements.sort_order.value=0;form.elements.active.value='1';form.elements.id.value='';form.elements.existing_image_url.value='';await reload();notice('Gallery image saved. It will appear on the public home page when Gallery is enabled.',true);
+    }catch(x){notice(x.message);}
+  };
+  $('#gallery-refresh').onclick=reload;await reload();
+}
+
 async function start(){
   try{
     installCmsPanels();
-    await Promise.all([loadCmsSettings(),enhanceServices()]);
+    installVisibilityManager();
+    installGalleryManager();
+    await Promise.all([loadCmsSettings(),enhanceServices(),loadVisibilityManager(),initGalleryManager()]);
     bindCmsForms();
-    document.documentElement.dataset.ephCms='v5';
+    document.documentElement.dataset.ephCms='v5.2';
   }catch(e){notice('Admin CMS could not initialize: '+e.message);}
 }
 start();

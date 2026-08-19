@@ -18,7 +18,7 @@ async function ephLoadSupabase(){
     document.head.appendChild(s);
   });
 }
-try{await ephLoadSupabase();document.documentElement.dataset.ephStaffRuntime='supabase-v3-1';console.info('Ephphatha staff runtime: Supabase v3.1');}catch(e){
+try{await ephLoadSupabase();document.documentElement.dataset.ephStaffRuntime='supabase-v5-3';console.info('Ephphatha staff runtime: Supabase v5.3');}catch(e){
   const target=document.querySelector('#admin-message')||document.querySelector('#therapist-message');
   if(target)target.innerHTML='<div class="notice">'+String(e.message||e)+'</div>';
   return;
@@ -184,6 +184,7 @@ async function initAdmin(){
     loadDashboard(),loadAppointments(),loadFamilies(),loadUsers(),
     loadServices(),loadTherapists(),loadSettings(),loadContent(),loadClosures()
   ]);
+  document.documentElement.dataset.ephAdminReady='1';
 }
 
 async function getCount(table,builder){
@@ -266,7 +267,7 @@ async function loadServices(){
   $('#therapist-service-checks').innerHTML=services.map(s=>`<label style="font-weight:600"><input type="checkbox" name="service_ids" value="${s.id}" style="width:auto"> ${esc(s.title)}</label>`).join('');
   $$('[data-edit-service]').forEach(b=>b.onclick=()=>{
     const s=services.find(x=>x.id==b.dataset.editService),f=$('#service-form');
-    f.id.value=s.id; f.title.value=s.title; f.duration_minutes.value=s.duration_minutes; f.mode.value=s.mode; f.summary.value=s.summary||'';
+    f.elements.id.value=s.id; f.elements.title.value=s.title; f.elements.duration_minutes.value=s.duration_minutes; f.elements.mode.value=s.mode; f.elements.summary.value=s.summary||'';
     f.scrollIntoView({behavior:'smooth'});
   });
 }
@@ -291,7 +292,7 @@ async function loadTherapists(){
   $('#availability-therapist').innerHTML='<option value="">Choose therapist</option>'+therapists.filter(t=>t.active).map(t=>`<option value="${t.id}">${esc(t.full_name)}</option>`).join('');
   $$('[data-edit-therapist]').forEach(b=>b.onclick=async()=>{
     const t=therapists.find(x=>x.id==b.dataset.editTherapist),f=$('#therapist-form');
-    f.id.value=t.id;f.name.value=t.full_name;f.title.value=t.title||'';f.email.value=t.email||'';f.phone.value=t.phone||'';f.qualifications.value=t.qualifications||'';f.bio.value=t.bio||'';
+    f.elements.id.value=t.id;f.elements.name.value=t.full_name;f.elements.title.value=t.title||'';f.elements.email.value=t.email||'';f.elements.phone.value=t.phone||'';f.elements.qualifications.value=t.qualifications||'';f.elements.bio.value=t.bio||'';
     $$('input[name="service_ids"]',f).forEach(x=>x.checked=false);
     const r=await sb.from('therapist_services').select('service_id').eq('therapist_id',t.id);
     const set=new Set((r.data||[]).map(x=>String(x.service_id)));
@@ -373,7 +374,7 @@ async function loadSettings(){
         whatsapp:s.whatsapp||s.phone_primary||'+91 97911 92699',
         email:s.email||'ephphathatherapycenter@gmail.com',
         address:s.address||'Vishwas Apartment, B-Block, Soundariya Nagar, Gowrivakkam, Chennai, Tamil Nadu 600073',
-        map_url:s.map_url||'https://maps.app.goo.gl/bZVv7D9i8jtyvMfr6',
+        map_url:s.map_url||'https://maps.app.goo.gl/pS8H2akJMwe726BQ8',
         map_embed_query:s.map_embed_query||'Ephphatha Therapy Center',
         instagram_url:s.instagram_url||'https://www.instagram.com/ephphathatherapycenter/',
         about_hero_title:s.about_hero_title||'Care that listens before it plans.',

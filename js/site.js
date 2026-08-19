@@ -1,4 +1,5 @@
 (function(){
+document.documentElement.dataset.ephPublicRuntime='v5.3';
 const cfg=window.EPH_CONFIG||{},fallback=cfg.contact||{};
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
 const esc=s=>String(s??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
@@ -24,6 +25,22 @@ function applyFallback(){
 }
 applyFallback();
 $$('[data-year]').forEach(el=>el.textContent=new Date().getFullYear());
+
+// Never allow the hard-coded legacy Google iframe to display an old business listing.
+// Replace it immediately with a safe exact-location card; Supabase can later replace
+// this with an official embed URL if Admin explicitly provides one.
+(function neutralizeLegacyMap(){
+  const frame=$('.map-frame');
+  if(!frame||frame.dataset.ephSafeMap==='1')return;
+  const map=fallback.mapUrl||'https://maps.app.goo.gl/pS8H2akJMwe726BQ8';
+  const box=document.createElement('div');
+  box.className='map-frame eph-safe-map';
+  box.dataset.ephSafeMap='1';
+  box.style.cssText='min-height:280px;display:flex;align-items:center;justify-content:center;text-align:center;padding:32px;background:#f3fbfa;border:1px solid #d9e8e6;border-radius:20px';
+  box.innerHTML=`<div><div style="font-size:2rem;margin-bottom:8px">⌖</div><h3 style="margin:0 0 8px">Exact Ephphatha Therapy Center location</h3><p data-address style="margin:0 0 18px">${esc(fallback.address||'')}</p><a class="btn btn-primary" data-directions href="${esc(map)}" target="_blank" rel="noopener">Open exact location in Google Maps →</a></div>`;
+  frame.replaceWith(box);
+  applyFallback();
+})();
 
 const servicesRoot=$('[data-services]');
 if(servicesRoot&&cfg.services)servicesRoot.innerHTML=cfg.services.map(s=>`<a class="service-card" href="${s.href}"><img src="${s.icon}" alt="" aria-hidden="true"><h3>${esc(s.title)}</h3><p>${esc(s.summary)}</p><span class="more">Explore service →</span></a>`).join('');
@@ -69,14 +86,14 @@ Promise.all([
   rest('content_items?select=id,type,title,body,image_url,meta,sort_order&active=eq.true&order=type.asc,sort_order.asc')
 ]).then(([settingRows,serviceRows,therapistRows,items])=>{
   const s=Object.fromEntries(settingRows.map(x=>[x.key,x.value]));
-  const center=s.center_profile||{},theme=s.theme||{},ann=s.announcement||{},navigation=s.navigation||{},media=s.brand_media||{},seo=s.seo_settings||{},footer=s.footer_content||{};
+  const center=s.center_profile||{},theme=s.theme||{},ann=s.announcement||{},navigation=s.navigation||{},media=s.brand_media||{},seo=s.seo_settings||{},footer=s.footer_content||{},galleryContent=s.gallery_content||{};
 
   if(theme.primary)document.documentElement.style.setProperty('--teal',theme.primary);
   if(theme.accent)document.documentElement.style.setProperty('--berry',theme.accent);
   if(theme.ink)document.documentElement.style.setProperty('--ink',theme.ink);
   if(theme.radius)document.documentElement.style.setProperty('--radius',theme.radius);
   if(theme.hero_style)document.body.dataset.heroStyle=theme.hero_style;
-  if(ann.enabled&&ann.text){const bar=document.createElement('div');bar.className='site-announcement';bar.textContent=ann.text;document.body.prepend(bar);}
+  if(ann.enabled){const bar=document.createElement('div');bar.className='site-announcement';bar.textContent=String(ann.text||'Welcome to Ephphatha Therapy Center.').trim()||'Welcome to Ephphatha Therapy Center.';document.body.prepend(bar);}
   if(s.business_hours)renderHours(s.business_hours);
 
   const clinic=center.clinic_name||'Ephphatha Therapy Center';
@@ -96,14 +113,18 @@ Promise.all([
   // Never display a potentially wrong Google place listing. Use an official embed URL only when Admin provides one.
   const mapFrame=$('.map-frame');
   if(mapFrame){
-    if(center.map_embed_url && /^https:\/\/www\.google\.[^/]+\/maps\/embed|^https:\/\/www\.google\.com\/maps\/embed/.test(center.map_embed_url)){
-      mapFrame.src=center.map_embed_url;
+    const validEmbed=center.map_embed_url && /^https:\/\/www\.google\.[^/]+\/maps\/embed|^https:\/\/www\.google\.com\/maps\/embed/.test(center.map_embed_url);
+    if(validEmbed){
+      if(mapFrame.tagName==='IFRAME') mapFrame.src=center.map_embed_url;
+      else{
+        const iframe=document.createElement('iframe');
+        iframe.className='map-frame';iframe.loading='lazy';iframe.referrerPolicy='no-referrer-when-downgrade';iframe.src=center.map_embed_url;iframe.title='Map showing Ephphatha Therapy Center';
+        mapFrame.replaceWith(iframe);
+      }
     }else{
-      const box=document.createElement('div');
-      box.className='map-frame';
-      box.style.cssText='min-height:280px;display:flex;align-items:center;justify-content:center;text-align:center;padding:32px;background:#f3fbfa;border:1px solid #d9e8e6;border-radius:20px';
-      box.innerHTML=`<div><div style="font-size:2rem;margin-bottom:8px">⌖</div><h3 style="margin:0 0 8px">Exact Ephphatha Therapy Center location</h3><p style="margin:0 0 18px">${esc(center.display_address||'')}</p><a class="btn btn-primary" href="${esc(mapUrl)}" target="_blank" rel="noopener">Open exact location in Google Maps →</a></div>`;
-      mapFrame.replaceWith(box);
+      mapFrame.dataset.ephSafeMap='1';
+      mapFrame.innerHTML=`<div><div style="font-size:2rem;margin-bottom:8px">⌖</div><h3 style="margin:0 0 8px">Exact Ephphatha Therapy Center location</h3><p data-address style="margin:0 0 18px">${esc(center.display_address||'')}</p><a class="btn btn-primary" data-directions href="${esc(mapUrl)}" target="_blank" rel="noopener">Open exact location in Google Maps →</a></div>`;
+      mapFrame.style.cssText='min-height:280px;display:flex;align-items:center;justify-content:center;text-align:center;padding:32px;background:#f3fbfa;border:1px solid #d9e8e6;border-radius:20px';
     }
   }
 
@@ -222,7 +243,7 @@ Promise.all([
     }
     const programs=items.filter(x=>x.type==='program'),gallery=items.filter(x=>x.type==='gallery'),testimonials=items.filter(x=>x.type==='testimonial'),faqs=items.filter(x=>x.type==='faq');
     if(programs.length&&faqSection&&s.show_programs!==false&&!$('.v2-programs-section')){const sec=document.createElement('section');sec.className='section v2-programs-section';sec.innerHTML=`<div class="container"><div class="section-head"><div><div class="eyebrow">Programs</div><h2>Focused support for real-life goals.</h2></div></div><div class="v2-content-grid">${programs.map(x=>`<article class="v2-content-card"><h3>${esc(x.title||'Program')}</h3><p>${esc(x.body||'')}</p></article>`).join('')}</div></div>`;faqSection.parentNode.insertBefore(sec,faqSection);}
-    if(gallery.length&&faqSection&&s.show_gallery!==false&&!$('.v2-gallery-section')){const usable=gallery.filter(x=>x.image_url);if(usable.length){const sec=document.createElement('section');sec.className='section section-soft v2-gallery-section';sec.innerHTML=`<div class="container"><div class="section-head"><div><div class="eyebrow">Inside Ephphatha</div><h2>Our center & activities.</h2></div></div><div class="v2-gallery-grid">${usable.map(x=>`<figure><img src="${esc(x.image_url)}" alt="${esc(x.title||clinic)}" loading="lazy"><figcaption><strong>${esc(x.title||'')}</strong><span>${esc(x.body||'')}</span></figcaption></figure>`).join('')}</div></div>`;faqSection.parentNode.insertBefore(sec,faqSection);}}
+    if(gallery.length&&faqSection&&s.show_gallery!==false&&!$('.v2-gallery-section')){const usable=gallery.filter(x=>x.image_url);if(usable.length){const sec=document.createElement('section');sec.className='section section-soft v2-gallery-section';sec.innerHTML=`<div class="container"><div class="section-head"><div><div class="eyebrow">${esc(galleryContent.kicker||'Inside Ephphatha')}</div><h2>${esc(galleryContent.heading||'Our center & activities.')}</h2></div></div><div class="v2-gallery-grid">${usable.map(x=>`<figure><img src="${esc(x.image_url)}" alt="${esc(x.title||clinic)}" loading="lazy"><figcaption><strong>${esc(x.title||'')}</strong><span>${esc(x.body||'')}</span></figcaption></figure>`).join('')}</div></div>`;faqSection.parentNode.insertBefore(sec,faqSection);}}
     if(testimonials.length&&$('.testimonials')&&s.show_testimonials!==false)$('.testimonials').innerHTML=testimonials.slice(0,6).map(x=>`<div class="quote"><div class="stars">★★★★★</div><blockquote>${esc(x.body||'')}</blockquote><small>${esc(x.title||'Family feedback')}</small></div>`).join('');
     if(faqs.length&&faqRoot){faqRoot.innerHTML=faqs.map((x,i)=>`<div class="faq-item${i===0?' open':''}"><button class="faq-q" type="button"><span>${esc(x.title)}</span><span>${i===0?'−':'+'}</span></button><div class="faq-a">${esc(x.body)}</div></div>`).join('');bindFaq(faqRoot);}
   }
