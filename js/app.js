@@ -26,7 +26,7 @@ try{await ephLoadSupabase();document.documentElement.dataset.ephStaffRuntime='su
 
 const SUPABASE_URL='https://plvjkqmmlkmsxlufotic.supabase.co';
 const SUPABASE_KEY='sb_publishable_x-_JzpcD7uAybNZ6-XLRvQ_L6dBb71V';
-const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);window.ephSupabase=sb;
 
 const $=(s,r=document)=>r.querySelector(s);
 const $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
@@ -499,8 +499,20 @@ async function saveTherapistBlock(e,tid){
   if(r.error)return msg($('#therapist-message'),r.error.message);e.target.reset();loadTherapistAvailability(tid);
 }
 
+async function loadAdminCms(){
+  if(document.querySelector('script[data-eph-admin-cms]'))return;
+  await new Promise((resolve,reject)=>{
+    const s=document.createElement('script');
+    s.src='js/admin-cms.js?v=5';
+    s.async=true;
+    s.dataset.ephAdminCms='1';
+    s.onload=resolve;
+    s.onerror=()=>reject(new Error('Admin CMS module could not load.'));
+    document.body.appendChild(s);
+  });
+}
 const app=document.body.dataset.app;
-if(app==='admin')initAdmin().catch(e=>msg($('#admin-message'),e.message));
+if(app==='admin')initAdmin().then(loadAdminCms).catch(e=>msg($('#admin-message'),e.message));
 if(app==='therapist')initTherapist().catch(e=>msg($('#therapist-message'),e.message));
 
 })();

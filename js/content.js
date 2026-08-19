@@ -6,7 +6,7 @@ window.EPH_CONFIG = {
     whatsappDigits:"919791192699",email:"ephphathatherapycenter@gmail.com",
     address:"Vishwas Apartment, B-Block, Soundariya Nagar, Gowrivakkam, Chennai, Tamil Nadu 600073",
     locality:"Gowrivakkam / Sembakkam, Chennai",
-    mapUrl:"https://maps.app.goo.gl/bZVv7D9i8jtyvMfr6",
+    mapUrl:"https://maps.app.goo.gl/pS8H2akJMwe726BQ8",
     mapQuery:"Ephphatha Therapy Center"
   },
   // Admin can override these values through Supabase-backed Website & Theme settings.
