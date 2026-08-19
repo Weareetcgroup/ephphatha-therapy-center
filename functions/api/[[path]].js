@@ -19,7 +19,7 @@ function fromB64url(s){ s=s.replace(/-/g,'+').replace(/_/g,'/'); while(s.length%
 async function sha256(text){ const d=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text)); return b64url(new Uint8Array(d)); }
 async function hashPassword(password,saltB64){
   const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(password),'PBKDF2',false,['deriveBits']);
-  const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:fromB64url(saltB64),iterations:120000,hash:'SHA-256'},key,256);
+  const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:fromB64url(saltB64),iterations:100000,hash:'SHA-256'},key,256);
   return b64url(new Uint8Array(bits));
 }
 function timingSafeEqual(a,b){ if(a.length!==b.length)return false; let x=0; for(let i=0;i<a.length;i++)x|=a.charCodeAt(i)^b.charCodeAt(i); return x===0; }
