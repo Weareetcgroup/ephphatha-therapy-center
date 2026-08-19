@@ -1,78 +1,389 @@
-(()=>{
-const app=document.body.dataset.app;
-const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
-const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-const api=async(path,options={})=>{const o={credentials:'same-origin',...options,headers:{'content-type':'application/json',...(options.headers||{})}};if(o.body&&typeof o.body!=='string')o.body=JSON.stringify(o.body);const r=await fetch('/api/'+path,o);let d;try{d=await r.json()}catch{d={ok:false,error:'Invalid server response'}}if(!r.ok)throw Object.assign(new Error(d.error||'Request failed'),{status:r.status,data:d});return d;};
-const msg=(el,text,type='')=>{if(!el)return;el.innerHTML=text?`<div class="notice ${type==='good'?'good':''}">${esc(text)}</div>`:'';};
-const formObj=form=>Object.fromEntries(new FormData(form).entries());
-const statusBadge=s=>`<span class="badge ${esc(s)}">${esc(String(s).replace('_',' '))}</span>`;
-const fmtDate=d=>{try{return new Intl.DateTimeFormat('en-IN',{weekday:'short',day:'numeric',month:'short',year:'numeric'}).format(new Date(d+'T00:00:00'))}catch{return d}};
-const dayNames=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-let me=null, services=[], therapists=[], settings={};
-async function who(){try{const d=await api('auth/me');me=d.user;return me}catch{return null}}
-async function loadServices(publicOnly=true){const d=await api(publicOnly?'public/services':'admin/services');services=d.services||[];return services}
-async function loadTherapists(publicOnly=false,serviceId=null){const path=publicOnly?'public/therapists'+(serviceId?`?service_id=${serviceId}`:''):'admin/therapists';const d=await api(path);therapists=d.therapists||[];return therapists}
-async function logout(){try{await api('auth/logout',{method:'POST',body:{}})}catch{}location.href='portal.html'}
-
-async function initPortal(){
- const authView=$('#auth-view'), portalView=$('#portal-view'), authMessage=$('#auth-message'), apiNotice=$('#api-notice');
- try{await api('health')}catch(e){if(e.status===503)msg(apiNotice,'The V2 portal code is deployed, but the Cloudflare D1 database still needs to be connected. Complete the D1 setup in Cloudflare, then refresh this page.');}
- $$('[data-auth-tab]').forEach(b=>b.onclick=()=>{$$('[data-auth-tab]').forEach(x=>x.classList.toggle('active',x===b));$$('.auth-form').forEach(f=>f.classList.toggle('active',f.id.startsWith(b.dataset.authTab)))});
- $('#login-form').onsubmit=async e=>{e.preventDefault();msg(authMessage,'');const d=formObj(e.target);try{await api('auth/login',{method:'POST',body:d});location.reload()}catch(x){msg(authMessage,x.message)}};
- $('#signup-form').onsubmit=async e=>{e.preventDefault();msg(authMessage,'');const d=formObj(e.target);try{await api('auth/signup',{method:'POST',body:d});location.reload()}catch(x){msg(authMessage,x.message)}};
- me=await who(); if(!me)return;
- authView.classList.add('hidden');portalView.classList.remove('hidden');$('#portal-user').textContent=`${me.name} · ${me.role}`;$('#logout-btn').onclick=logout;
- if(['admin','super_admin'].includes(me.role)){const l=$('#staff-link');l.classList.remove('hidden');l.href='admin.html';l.textContent='Admin dashboard';}
- else if(me.role==='therapist'){const l=$('#staff-link');l.classList.remove('hidden');l.href='therapist.html';l.textContent='Therapist portal';}
- $('#toggle-patient-form').onclick=()=>$('#patient-form-wrap').classList.toggle('hidden');
- $('#patient-form').onsubmit=async e=>{e.preventDefault();try{await api('patients',{method:'POST',body:formObj(e.target)});e.target.reset();$('#patient-form-wrap').classList.add('hidden');await loadPatients();msg($('#portal-message'),'Profile saved.','good')}catch(x){msg($('#portal-message'),x.message)}};
- $('#refresh-appts').onclick=loadAppointments;
- await Promise.all([loadPatients(),loadBookingServices(),loadAppointments()]);
- $('#book-service').onchange=async()=>{await populateTherapists();await loadSlots()};$('#book-therapist').onchange=loadSlots;$('#book-date').onchange=loadSlots;
- $('#booking-form').onsubmit=async e=>{e.preventDefault();const d=formObj(e.target);if(!d.start)return msg($('#portal-message'),'Please choose an available slot.');try{await api('appointments',{method:'POST',body:d});msg($('#portal-message'),'Appointment requested. The center can now review and confirm it.','good');$('#book-start').value='';await Promise.all([loadSlots(),loadAppointments()])}catch(x){msg($('#portal-message'),x.message)}};
- async function loadPatients(){try{const d=await api('patients');const rows=d.patients||[];$('#patients-list').innerHTML=rows.length?rows.map(p=>`<div class="patient-card"><strong>${esc(p.name)}</strong><div class="muted">${esc(p.relationship||'Client')}${p.date_of_birth?' · DOB '+esc(p.date_of_birth):''}</div></div>`).join(''):'<div class="empty">Add a child or client profile before booking.</div>';$('#book-patient').innerHTML='<option value="">Choose profile</option>'+rows.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}catch(x){msg($('#portal-message'),x.message)}}
- async function loadBookingServices(){try{await loadServices(true);$('#book-service').innerHTML='<option value="">Choose service</option>'+services.map(s=>`<option value="${s.id}">${esc(s.title)} · ${s.duration_minutes} min</option>`).join('')}catch(x){msg($('#portal-message'),x.message)}}
- async function populateTherapists(){const sid=$('#book-service').value;$('#book-therapist').innerHTML='<option value="">Any available therapist</option>';if(!sid)return;try{const d=await api(`public/therapists?service_id=${sid}`);$('#book-therapist').innerHTML+=[...(d.therapists||[])].map(t=>`<option value="${t.id}">${esc(t.name)}${t.title?' · '+esc(t.title):''}</option>`).join('')}catch{}}
- async function loadSlots(){const sid=$('#book-service').value,date=$('#book-date').value,tid=$('#book-therapist').value;$('#book-start').value='';const grid=$('#slot-grid');if(!sid||!date){grid.innerHTML='';return}grid.innerHTML='<span class="spinner"></span>';try{const d=await api(`public/slots?service_id=${sid}&date=${date}${tid?'&therapist_id='+tid:''}`);const slots=d.slots||[];$('#slot-help').textContent=slots.length?'Choose one available time.':'No open slots are currently configured for this date.';grid.innerHTML=slots.map(s=>`<button type="button" class="slot" data-start="${s.start}" data-therapist="${s.therapist_id}">${esc(s.start)}<small>${esc(s.therapist_name)} · ${s.duration_minutes} min</small></button>`).join('');$$('.slot',grid).forEach(b=>b.onclick=()=>{$$('.slot',grid).forEach(x=>x.classList.remove('selected'));b.classList.add('selected');$('#book-start').value=b.dataset.start;$('#book-therapist').value=b.dataset.therapist})}catch(x){grid.innerHTML='';msg($('#portal-message'),x.message)}}
- async function loadAppointments(){try{const d=await api('appointments');const rows=d.appointments||[];$('#appointments-list').innerHTML=rows.length?rows.map(a=>`<div class="appt-card"><div class="toolbar"><strong>${esc(a.service_title)}</strong>${statusBadge(a.status)}<span class="right muted">${fmtDate(a.appointment_date)}</span></div><div style="margin-top:8px">${esc(a.start_time)}–${esc(a.end_time)} · ${esc(a.therapist_name)} · ${esc(a.mode)}</div><div class="muted">For ${esc(a.patient_name)}</div>${['pending','confirmed'].includes(a.status)?`<div class="toolbar" style="margin-top:10px"><button class="btn btn-danger btn-sm" data-cancel="${a.id}">Cancel</button></div>`:''}</div>`).join(''):'<div class="empty">No appointments yet.</div>';$$('[data-cancel]').forEach(b=>b.onclick=async()=>{if(!confirm('Cancel this appointment?'))return;try{await api(`appointments/${b.dataset.cancel}/cancel`,{method:'POST',body:{}});await loadAppointments()}catch(x){msg($('#portal-message'),x.message)}})}catch(x){msg($('#portal-message'),x.message)}}
+(async()=>{
+async function ephLoadSupabase(){
+  if(window.supabase?.createClient)return;
+  await new Promise((resolve,reject)=>{
+    const existing=document.querySelector('script[data-eph-supabase]');
+    if(existing){
+      if(window.supabase?.createClient)return resolve();
+      existing.addEventListener('load',resolve,{once:true});
+      existing.addEventListener('error',()=>reject(new Error('Supabase library could not load.')),{once:true});
+      return;
+    }
+    const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+    s.async=true;
+    s.dataset.ephSupabase='1';
+    s.onload=resolve;
+    s.onerror=()=>reject(new Error('Supabase library could not load.'));
+    document.head.appendChild(s);
+  });
+}
+try{await ephLoadSupabase();document.documentElement.dataset.ephStaffRuntime='supabase-v3-1';console.info('Ephphatha staff runtime: Supabase v3.1');}catch(e){
+  const target=document.querySelector('#admin-message')||document.querySelector('#therapist-message');
+  if(target)target.innerHTML='<div class="notice">'+String(e.message||e)+'</div>';
+  return;
 }
 
-async function ensureRole(roles,redirect='portal.html'){me=await who();if(!me||!roles.includes(me.role)){location.href=redirect;return false}return true}
-function navViews(){$$('[data-view]').forEach(b=>b.onclick=()=>showView(b.dataset.view));$$('[data-go]').forEach(b=>b.onclick=()=>showView(b.dataset.go));function showView(name){$$('[data-view]').forEach(x=>x.classList.toggle('active',x.dataset.view===name));$$('[data-view-panel]').forEach(x=>x.classList.toggle('active',x.dataset.viewPanel===name));const active=$(`[data-view="${name}"]`);$('#admin-title').textContent=active?active.textContent.trim():name;$('#app-side').classList.remove('open')}}
+const SUPABASE_URL='https://plvjkqmmlkmsxlufotic.supabase.co';
+const SUPABASE_KEY='sb_publishable_x-_JzpcD7uAybNZ6-XLRvQ_L6dBb71V';
+const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+
+const $=(s,r=document)=>r.querySelector(s);
+const $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
+const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+const msg=(el,text,good=false)=>{if(el)el.innerHTML=text?`<div class="notice ${good?'good':''}">${esc(text)}</div>`:'';};
+const fo=form=>Object.fromEntries(new FormData(form).entries());
+const hh=t=>String(t||'').slice(0,5);
+const fmt=d=>{try{return new Intl.DateTimeFormat('en-IN',{day:'numeric',month:'short',year:'numeric'}).format(new Date(d+'T00:00:00'))}catch{return d}};
+let profile=null, services=[], therapists=[];
+
+async function requireRole(roles){
+  const target=$('#admin-message')||$('#therapist-message');
+  const {data:{session},error:sessionError}=await sb.auth.getSession();
+  if(sessionError){msg(target,'Could not read your sign-in session: '+sessionError.message);return null;}
+  if(!session){location.replace('portal.html');return null;}
+  const {data,error}=await sb.rpc('get_current_profile');
+  if(error){msg(target,'Your account is signed in, but the staff profile could not be validated: '+error.message);return null;}
+  const p=Array.isArray(data)?data[0]:data;
+  if(!p){msg(target,'Your sign-in exists, but no Ephphatha profile is linked to it.');return null;}
+  if(!p.active){msg(target,'This Ephphatha account is inactive.');return null;}
+  if(!roles.includes(p.role)){msg(target,`Access denied for role: ${p.role}. This page requires ${roles.join(' or ')} access.`);return null;}
+  profile=p; return profile;
+}
+async function logout(){await sb.auth.signOut();location.replace('portal.html');}
+
+function initNav(){
+  $$('[data-view]').forEach(b=>b.onclick=()=>show(b.dataset.view));
+  $$('[data-go]').forEach(b=>b.onclick=()=>show(b.dataset.go));
+  function show(name){
+    $$('[data-view]').forEach(x=>x.classList.toggle('active',x.dataset.view===name));
+    $$('[data-view-panel]').forEach(x=>x.classList.toggle('active',x.dataset.viewPanel===name));
+    const active=$(`[data-view="${name}"]`);
+    if($('#admin-title'))$('#admin-title').textContent=active?active.textContent.trim():name;
+    $('#app-side')?.classList.remove('open');
+  }
+}
 
 async function initAdmin(){
- if(!await ensureRole(['admin','super_admin']))return;navViews();$('#admin-name').textContent=me.name;$('#admin-role').textContent=me.role;$('#admin-avatar').textContent=(me.name||'E')[0].toUpperCase();$('#admin-logout').onclick=logout;$('#side-toggle').onclick=()=>$('#app-side').classList.toggle('open');
- $('#refresh-dashboard').onclick=loadDashboard;$('#refresh-admin-appts').onclick=loadAdminAppointments;$('#refresh-families').onclick=loadFamilies;
- await Promise.all([loadDashboard(),loadAdminAppointments(),loadFamilies(),loadAdminServices(),loadAdminTherapists(),loadAdminSettings(),loadContent(),loadClosures()]);
- $('#service-form').onsubmit=saveService;$('#closure-form').onsubmit=saveClosure;$('#booking-rules-form').onsubmit=saveBookingRules;$('#therapist-form').onsubmit=saveTherapist;$('#availability-therapist').onchange=loadAvailability;$('#availability-form').onsubmit=e=>saveAvailability(e,false);$('#block-form').onsubmit=e=>saveAvailability(e,true);$('#theme-form').onsubmit=saveTheme;$('#content-settings-form').onsubmit=saveVisibility;$('#hours-form').onsubmit=saveHours;$('#content-item-form').onsubmit=saveContent;
- $$('.theme-swatch').forEach(b=>b.onclick=()=>{const [p,a,i]=b.dataset.theme.split('|');const f=$('#theme-form');f.primary_color.value=p;f.accent_color.value=a;f.ink_color.value=i});
- async function loadDashboard(){try{const d=await api('admin/dashboard');const s=d.stats;$('#metrics').innerHTML=[['Today',s.today],['Upcoming',s.upcoming],['Pending',s.pending],['Families',s.parents],['Therapists',s.therapists]].map(([k,v])=>`<div class="metric"><span>${k}</span><b>${v}</b></div>`).join('')}catch(x){msg($('#admin-message'),x.message)}}
- async function loadAdminAppointments(){try{const d=await api('admin/appointments');const rows=d.appointments||[];$('#admin-appts').innerHTML=rows.length?`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Time</th><th>Patient</th><th>Service</th><th>Therapist</th><th>Status</th><th>Action</th></tr></thead><tbody>${rows.map(a=>`<tr><td>${fmtDate(a.appointment_date)}</td><td>${esc(a.start_time)}</td><td><strong>${esc(a.patient_name)}</strong><br><small>${esc(a.parent_name||'')} ${esc(a.parent_phone||'')}</small></td><td>${esc(a.service_title)}</td><td>${esc(a.therapist_name)}</td><td>${statusBadge(a.status)}</td><td><select data-appt-status="${a.id}"><option value="pending" ${a.status==='pending'?'selected':''}>Pending</option><option value="confirmed" ${a.status==='confirmed'?'selected':''}>Confirmed</option><option value="completed" ${a.status==='completed'?'selected':''}>Completed</option><option value="cancelled" ${a.status==='cancelled'?'selected':''}>Cancelled</option><option value="no_show" ${a.status==='no_show'?'selected':''}>No show</option></select></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No appointments yet.</div>';$$('[data-appt-status]').forEach(s=>s.onchange=async()=>{try{await api('admin/appointments',{method:'POST',body:{id:s.dataset.apptStatus,status:s.value}});await loadDashboard();msg($('#admin-message'),'Appointment updated.','good')}catch(x){msg($('#admin-message'),x.message)}})}catch(x){msg($('#admin-message'),x.message)}}
- async function loadFamilies(){try{const d=await api('admin/families');const rows=d.families||[];$('#families-list').innerHTML=rows.length?`<div class="table-wrap"><table><thead><tr><th>Client</th><th>Parent / account</th><th>Contact</th><th>Relationship</th><th>Appointments</th></tr></thead><tbody>${rows.map(x=>`<tr><td><strong>${esc(x.patient_name)}</strong>${x.date_of_birth?`<br><small>DOB ${esc(x.date_of_birth)}</small>`:''}</td><td>${esc(x.parent_name)}</td><td>${esc(x.parent_phone||'')}<br><small>${esc(x.parent_email||'')}</small></td><td>${esc(x.relationship||'')}</td><td>${x.appointment_count}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No parent/client profiles yet.</div>'}catch(x){msg($('#admin-message'),x.message)}}
- async function loadAdminServices(){try{await loadServices(false);$('#services-list').innerHTML=services.map(s=>`<button type="button" class="patient-card" style="text-align:left;cursor:pointer" data-edit-service="${s.id}"><strong>${esc(s.title)}</strong><div class="muted">${s.duration_minutes} min · ${esc(s.mode)} · ${s.active?'Active':'Hidden'}</div></button>`).join('');$('#therapist-service-checks').innerHTML=services.map(s=>`<label style="font-weight:600"><input type="checkbox" name="service_ids" value="${s.id}" style="width:auto"> ${esc(s.title)}</label>`).join('');$$('[data-edit-service]').forEach(b=>b.onclick=()=>{const s=services.find(x=>x.id==b.dataset.editService),f=$('#service-form');f.id.value=s.id;f.title.value=s.title;f.duration_minutes.value=s.duration_minutes;f.mode.value=s.mode;f.summary.value=s.summary||'';f.scrollIntoView({behavior:'smooth'})})}catch(x){msg($('#admin-message'),x.message)}}
- async function saveService(e){e.preventDefault();const d=formObj(e.target);d.id=d.id?Number(d.id):null;d.duration_minutes=Number(d.duration_minutes);try{await api('admin/services',{method:'POST',body:d});e.target.reset();await loadAdminServices();msg($('#admin-message'),'Service saved.','good')}catch(x){msg($('#admin-message'),x.message)}}
- async function loadAdminTherapists(){try{await loadTherapists(false);$('#therapists-list').innerHTML=therapists.length?therapists.map(t=>`<button type="button" class="patient-card" style="text-align:left;cursor:pointer" data-edit-therapist="${t.id}"><strong>${esc(t.name)}</strong><div class="muted">${esc(t.title||'Therapist')} · ${t.active?'Active':'Inactive'}</div><small>${esc(t.email||'')}</small></button>`).join(''):'<div class="empty">Add the first therapist to enable bookable slots.</div>';$('#availability-therapist').innerHTML='<option value="">Choose therapist</option>'+therapists.filter(t=>t.active).map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('');$$('[data-edit-therapist]').forEach(b=>b.onclick=()=>{const t=therapists.find(x=>x.id==b.dataset.editTherapist),f=$('#therapist-form');for(const k of ['id','name','title','email','phone','qualifications','bio'])if(f[k])f[k].value=t[k]||'';const ids=String(t.service_ids||'').split(',');$$('input[name="service_ids"]',f).forEach(c=>c.checked=ids.includes(c.value));f.scrollIntoView({behavior:'smooth'})})}catch(x){msg($('#admin-message'),x.message)}}
- async function saveTherapist(e){e.preventDefault();const d=formObj(e.target);d.id=d.id?Number(d.id):null;d.service_ids=$$('input[name="service_ids"]',e.target).filter(x=>x.checked).map(x=>Number(x.value));try{await api('admin/therapists',{method:'POST',body:d});e.target.reset();await loadAdminTherapists();msg($('#admin-message'),'Therapist saved. If the therapist signs up using the same email, the account is automatically linked.','good')}catch(x){msg($('#admin-message'),x.message)}}
- async function loadAvailability(){const id=$('#availability-therapist').value;if(!id){$('#availability-list').innerHTML='';$('#blocks-list').innerHTML='';return}try{const d=await api(`therapist/availability?therapist_id=${id}`);$('#availability-list').innerHTML=(d.availability||[]).map(a=>`<div class="patient-card"><strong>${dayNames[a.weekday]}</strong><div>${esc(a.start_time)}–${esc(a.end_time)}</div></div>`).join('')||'<div class="empty">No weekly availability yet.</div>';$('#blocks-list').innerHTML=(d.blocks||[]).map(a=>`<div class="patient-card"><strong>${fmtDate(a.date)}</strong><div>${esc(a.start_time)}–${esc(a.end_time)} · ${esc(a.reason||'Unavailable')}</div></div>`).join('')||'<div class="empty">No future blocks.</div>'}catch(x){msg($('#admin-message'),x.message)}}
- async function saveAvailability(e,block){e.preventDefault();const id=$('#availability-therapist').value;if(!id)return msg($('#admin-message'),'Choose a therapist first.');const d=formObj(e.target);if(block)d.action='block';try{await api(`therapist/availability?therapist_id=${id}`,{method:'POST',body:d});await loadAvailability();msg($('#admin-message'),block?'Blocked time saved.':'Availability window added.','good')}catch(x){msg($('#admin-message'),x.message)}}
- async function loadClosures(){try{const d=await api('admin/closures');$('#closures-list').innerHTML=(d.closures||[]).map(x=>`<div class="patient-card"><div class="toolbar"><strong>${fmtDate(x.date)}</strong><span>${esc(x.reason||'Center closed')}</span><button class="btn btn-danger btn-sm right" data-delete-closure="${x.id}">Remove</button></div></div>`).join('')||'<div class="empty">No future center closures.</div>';$$('[data-delete-closure]').forEach(b=>b.onclick=async()=>{if(!confirm('Remove this center closure?'))return;try{await api('admin/closures',{method:'POST',body:{action:'delete',id:b.dataset.deleteClosure}});await loadClosures()}catch(x){msg($('#admin-message'),x.message)}})}catch(x){msg($('#admin-message'),x.message)}}
- async function saveClosure(e){e.preventDefault();try{await api('admin/closures',{method:'POST',body:formObj(e.target)});e.target.reset();await loadClosures();msg($('#admin-message'),'Center closure saved. No appointments will be offered on that date.','good')}catch(x){msg($('#admin-message'),x.message)}}
- async function loadAdminSettings(){try{const d=await api('admin/settings');settings=d.settings||{};const tf=$('#theme-form');for(const k of ['primary_color','accent_color','ink_color','card_radius','hero_style'])if(tf[k])tf[k].value=settings[k]||tf[k].value;const cf=$('#content-settings-form');for(const k of ['announcement_text','announcement_enabled','show_gallery','show_testimonials','show_programs'])if(cf[k])cf[k].value=settings[k]??'';const bf=$('#booking-rules-form');for(const k of ['slot_interval_minutes','booking_lead_minutes','booking_horizon_days'])if(bf?.[k])bf[k].value=settings[k]??bf[k].value;renderHours()}catch(x){msg($('#admin-message'),x.message)}}
- async function saveBookingRules(e){e.preventDefault();try{await api('admin/settings',{method:'POST',body:{settings:formObj(e.target)}});msg($('#admin-message'),'Booking rules saved. New slot searches use these values immediately.','good')}catch(x){msg($('#admin-message'),x.message)}}
- async function saveTheme(e){e.preventDefault();try{await api('admin/settings',{method:'POST',body:{settings:formObj(e.target)}});msg($('#admin-message'),'Theme saved. Public pages will use the new theme on refresh.','good')}catch(x){msg($('#admin-message'),x.message)}}
- async function saveVisibility(e){e.preventDefault();try{await api('admin/settings',{method:'POST',body:{settings:formObj(e.target)}});msg($('#admin-message'),'Website display settings saved.','good')}catch(x){msg($('#admin-message'),x.message)}}
- function renderHours(){let h={};try{h=JSON.parse(settings.business_hours||'{}')}catch{};$('#hours-grid').innerHTML=dayNames.map((name,i)=>{const v=h[i];return `<div class="day-grid"><strong class="day-label">${name}</strong><input type="time" name="h${i}s" value="${v?v[0]:''}" ${v?'':'disabled'}><input type="time" name="h${i}e" value="${v?v[1]:''}" ${v?'':'disabled'}><label style="font-weight:600"><input type="checkbox" data-day-open="${i}" ${v?'checked':''} style="width:auto"> Open</label></div>`}).join('');$$('[data-day-open]').forEach(c=>c.onchange=()=>{const row=c.closest('.day-grid');$$('input[type=time]',row).forEach(x=>{x.disabled=!c.checked;if(c.checked&&!x.value)x.value=x===row.querySelector('input[type=time]')?'09:30':'20:00'})})}
- async function saveHours(e){e.preventDefault();const h={};for(let i=0;i<7;i++){const c=$(`[data-day-open="${i}"]`);h[i]=c.checked?[e.target[`h${i}s`].value,e.target[`h${i}e`].value]:null}try{await api('admin/settings',{method:'POST',body:{settings:{business_hours:h}}});settings.business_hours=JSON.stringify(h);msg($('#admin-message'),'Clinic display hours saved.','good')}catch(x){msg($('#admin-message'),x.message)}}
- async function loadContent(){try{const d=await api('admin/content');$('#content-list').innerHTML=(d.items||[]).map(x=>`<div class="patient-card"><div class="toolbar"><strong>${esc(x.title||x.type)}</strong><span class="badge">${esc(x.type)}</span></div><div class="muted">${esc(x.body||'')}</div></div>`).join('')||'<div class="empty">No managed content items yet.</div>'}catch(x){if(x.status!==403)msg($('#admin-message'),x.message)}}
- async function saveContent(e){e.preventDefault();try{await api('admin/content',{method:'POST',body:formObj(e.target)});e.target.reset();await loadContent();msg($('#admin-message'),'Content item saved.','good')}catch(x){msg($('#admin-message'),x.message)}}
+  if(!await requireRole(['admin','super_admin']))return;
+  initNav();
+  $('#admin-name').textContent=profile.full_name||profile.email;
+  $('#admin-role').textContent=profile.role;
+  $('#admin-avatar').textContent=(profile.full_name||'E')[0].toUpperCase();
+  $('#admin-logout').onclick=logout;
+  $('#side-toggle').onclick=()=>$('#app-side').classList.toggle('open');
+
+  // Inject Users & Access without requiring an HTML redesign.
+  const nav=$('.side-nav');
+  if(nav&&!nav.querySelector('[data-view="users"]')){
+    const b=document.createElement('button'); b.dataset.view='users'; b.textContent='Users & Access';
+    nav.insertBefore(b,nav.querySelector('a'));
+    b.onclick=()=>{ $$('[data-view]').forEach(x=>x.classList.toggle('active',x===b)); $$('[data-view-panel]').forEach(x=>x.classList.toggle('active',x.dataset.viewPanel==='users')); $('#admin-title').textContent='Users & Access'; };
+    const sec=document.createElement('section'); sec.className='view'; sec.dataset.viewPanel='users';
+    sec.innerHTML='<div class="page-head"><div><h2>Users & Access</h2><p>Manage parent, therapist, reception and administrator roles.</p></div><button class="btn btn-secondary" id="refresh-users">Refresh</button></div><div class="panel"><div id="users-list"></div></div>';
+    $('.app-content').appendChild(sec);
+    $('#refresh-users').onclick=loadUsers;
+  }
+
+  $('#refresh-dashboard').onclick=loadDashboard;
+  $('#refresh-admin-appts').onclick=loadAppointments;
+  $('#refresh-families').onclick=loadFamilies;
+  $('#service-form').onsubmit=saveService;
+  $('#therapist-form').onsubmit=saveTherapist;
+  $('#availability-therapist').onchange=loadAvailability;
+  $('#availability-form').onsubmit=saveAvailability;
+  $('#block-form').onsubmit=saveBlock;
+  $('#closure-form').onsubmit=saveClosure;
+  $('#booking-rules-form').onsubmit=saveBookingRules;
+  $('#theme-form').onsubmit=saveTheme;
+  $('#content-settings-form').onsubmit=saveDisplay;
+  $('#hours-form').onsubmit=saveHours;
+  $('#content-item-form').onsubmit=saveContent;
+  $$('.theme-swatch').forEach(b=>b.onclick=()=>{
+    const [p,a,i]=b.dataset.theme.split('|'),f=$('#theme-form');
+    f.primary_color.value=p; f.accent_color.value=a; f.ink_color.value=i;
+  });
+
+  const cf=$('#content-item-form');
+  if(cf&&!cf.querySelector('[name="image_file"]')){
+    const d=document.createElement('div'); d.className='field full';
+    d.innerHTML='<label>Upload image (optional)</label><input name="image_file" type="file" accept="image/png,image/jpeg,image/webp,image/gif"><small class="muted">PNG/JPG/WebP/GIF, max 5 MB.</small>';
+    cf.querySelector('button').closest('.field').before(d);
+  }
+
+  await Promise.all([
+    loadDashboard(),loadAppointments(),loadFamilies(),loadUsers(),
+    loadServices(),loadTherapists(),loadSettings(),loadContent(),loadClosures()
+  ]);
+}
+
+async function getCount(table,builder){
+  let q=sb.from(table).select('id',{count:'exact',head:true});
+  if(builder)q=builder(q);
+  const {count,error}=await q;
+  if(error)throw error;
+  return count||0;
+}
+
+async function loadDashboard(){
+  try{
+    const today=new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'});
+    const [todayN,upcoming,pending,parents,thr]=await Promise.all([
+      getCount('appointments',q=>q.eq('appointment_date',today).neq('status','cancelled')),
+      getCount('appointments',q=>q.gte('appointment_date',today).in('status',['pending','confirmed'])),
+      getCount('appointments',q=>q.eq('status','pending')),
+      getCount('profiles',q=>q.eq('role','parent').eq('active',true)),
+      getCount('therapists',q=>q.eq('active',true))
+    ]);
+    $('#metrics').innerHTML=[['Today',todayN],['Upcoming',upcoming],['Pending',pending],['Families',parents],['Therapists',thr]]
+      .map(([k,v])=>`<div class="metric"><span>${k}</span><b>${v}</b></div>`).join('');
+  }catch(e){msg($('#admin-message'),e.message);}
+}
+
+async function loadAppointments(){
+  const {data,error}=await sb.from('appointments')
+    .select('id,appointment_date,start_time,end_time,mode,status,owner_user_id,patients(full_name),services(title),therapists(full_name)')
+    .order('appointment_date',{ascending:false}).order('start_time',{ascending:false}).limit(300);
+  if(error)return msg($('#admin-message'),error.message);
+  const ids=[...new Set((data||[]).map(x=>x.owner_user_id))];
+  let people={};
+  if(ids.length){
+    const r=await sb.from('profiles').select('id,full_name,phone,email').in('id',ids);
+    people=Object.fromEntries((r.data||[]).map(x=>[x.id,x]));
+  }
+  $('#admin-appts').innerHTML=(data||[]).length?`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Time</th><th>Patient</th><th>Service</th><th>Therapist</th><th>Status</th><th>Action</th></tr></thead><tbody>${
+    data.map(a=>`<tr><td>${fmt(a.appointment_date)}</td><td>${hh(a.start_time)}</td><td><strong>${esc(a.patients?.full_name||'')}</strong><br><small>${esc(people[a.owner_user_id]?.full_name||'')} ${esc(people[a.owner_user_id]?.phone||'')}</small></td><td>${esc(a.services?.title||'')}</td><td>${esc(a.therapists?.full_name||'')}</td><td><span class="badge ${esc(a.status)}">${esc(a.status)}</span></td><td><select data-status="${a.id}">${['pending','confirmed','completed','cancelled','no_show'].map(s=>`<option value="${s}" ${s===a.status?'selected':''}>${s.replace('_',' ')}</option>`).join('')}</select></td></tr>`).join('')
+  }</tbody></table></div>`:'<div class="empty">No appointments yet.</div>';
+  $$('[data-status]').forEach(s=>s.onchange=async()=>{
+    const r=await sb.rpc('set_appointment_status',{p_appointment_id:Number(s.dataset.status),p_status:s.value});
+    if(r.error)msg($('#admin-message'),r.error.message); else {msg($('#admin-message'),'Appointment updated.',true);loadDashboard();}
+  });
+}
+
+async function loadFamilies(){
+  const {data,error}=await sb.from('patients').select('id,full_name,date_of_birth,relationship,owner_user_id').eq('active',true).order('full_name');
+  if(error)return msg($('#admin-message'),error.message);
+  const ids=[...new Set((data||[]).map(x=>x.owner_user_id))];
+  let people={};
+  if(ids.length){
+    const r=await sb.from('profiles').select('id,full_name,email,phone').in('id',ids);
+    people=Object.fromEntries((r.data||[]).map(x=>[x.id,x]));
+  }
+  $('#families-list').innerHTML=(data||[]).length?`<div class="table-wrap"><table><thead><tr><th>Client</th><th>Parent / account</th><th>Contact</th><th>Relationship</th></tr></thead><tbody>${
+    data.map(x=>`<tr><td><strong>${esc(x.full_name)}</strong>${x.date_of_birth?`<br><small>DOB ${esc(x.date_of_birth)}</small>`:''}</td><td>${esc(people[x.owner_user_id]?.full_name||'')}</td><td>${esc(people[x.owner_user_id]?.phone||'')}<br><small>${esc(people[x.owner_user_id]?.email||'')}</small></td><td>${esc(x.relationship||'')}</td></tr>`).join('')
+  }</tbody></table></div>`:'<div class="empty">No family profiles yet.</div>';
+}
+
+async function loadUsers(){
+  const root=$('#users-list'); if(!root)return;
+  const {data,error}=await sb.from('profiles').select('id,email,full_name,phone,role,active,created_at').order('created_at',{ascending:false});
+  if(error)return msg($('#admin-message'),error.message);
+  root.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Name</th><th>Contact</th><th>Role</th><th>Active</th></tr></thead><tbody>${
+    (data||[]).map(u=>`<tr><td><strong>${esc(u.full_name||'')}</strong>${u.id===profile.id?'<br><small>Your account</small>':''}</td><td>${esc(u.email||'')}<br><small>${esc(u.phone||'')}</small></td><td><select data-role="${u.id}" ${u.id===profile.id?'disabled':''}>${['parent','therapist','reception','admin','super_admin'].map(r=>`<option value="${r}" ${r===u.role?'selected':''}>${r.replace('_',' ')}</option>`).join('')}</select></td><td><select data-active="${u.id}" ${u.id===profile.id?'disabled':''}><option value="1" ${u.active?'selected':''}>Yes</option><option value="0" ${!u.active?'selected':''}>No</option></select></td></tr>`).join('')
+  }</tbody></table></div>`;
+  $$('[data-role]').forEach(sel=>sel.onchange=()=>saveUserAccess(sel.dataset.role,sel.value,$(`[data-active="${sel.dataset.role}"]`).value==='1'));
+  $$('[data-active]').forEach(sel=>sel.onchange=()=>saveUserAccess(sel.dataset.active,$(`[data-role="${sel.dataset.active}"]`).value,sel.value==='1'));
+}
+async function saveUserAccess(id,role,active){
+  const r=await sb.rpc('admin_set_user_role',{p_user_id:id,p_role:role,p_active:active});
+  if(r.error)msg($('#admin-message'),r.error.message); else msg($('#admin-message'),'User access updated.',true);
+}
+
+async function loadServices(){
+  const {data,error}=await sb.from('services').select('*').order('sort_order').order('title');
+  if(error)return msg($('#admin-message'),error.message);
+  services=data||[];
+  $('#services-list').innerHTML=services.map(s=>`<button type="button" class="patient-card" data-edit-service="${s.id}" style="text-align:left"><strong>${esc(s.title)}</strong><div class="muted">${s.duration_minutes} min · ${esc(s.mode)} · ${s.active?'Active':'Hidden'}</div></button>`).join('');
+  $('#therapist-service-checks').innerHTML=services.map(s=>`<label style="font-weight:600"><input type="checkbox" name="service_ids" value="${s.id}" style="width:auto"> ${esc(s.title)}</label>`).join('');
+  $$('[data-edit-service]').forEach(b=>b.onclick=()=>{
+    const s=services.find(x=>x.id==b.dataset.editService),f=$('#service-form');
+    f.id.value=s.id; f.title.value=s.title; f.duration_minutes.value=s.duration_minutes; f.mode.value=s.mode; f.summary.value=s.summary||'';
+    f.scrollIntoView({behavior:'smooth'});
+  });
+}
+async function saveService(e){
+  e.preventDefault(); const d=fo(e.target);
+  const row={title:d.title.trim(),summary:d.summary||'',duration_minutes:Number(d.duration_minutes),mode:d.mode,active:true};
+  let r;
+  if(d.id)r=await sb.from('services').update(row).eq('id',Number(d.id));
+  else {row.slug=d.title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');r=await sb.from('services').insert(row);}
+  if(r.error)return msg($('#admin-message'),r.error.message);
+  e.target.reset(); await loadServices(); msg($('#admin-message'),'Service saved.',true);
+}
+
+async function loadTherapists(){
+  const {data,error}=await sb.from('therapists').select('*').order('full_name');
+  if(error)return msg($('#admin-message'),error.message);
+  therapists=data||[];
+  $('#therapists-list').innerHTML=therapists.length?therapists.map(t=>`<button type="button" class="patient-card" data-edit-therapist="${t.id}" style="text-align:left"><strong>${esc(t.full_name)}</strong><div class="muted">${esc(t.title||'Therapist')} · ${t.active?'Active':'Inactive'}</div><small>${esc(t.email||'')}</small></button>`).join(''):'<div class="empty">Add the first therapist to enable bookable slots.</div>';
+  $('#availability-therapist').innerHTML='<option value="">Choose therapist</option>'+therapists.filter(t=>t.active).map(t=>`<option value="${t.id}">${esc(t.full_name)}</option>`).join('');
+  $$('[data-edit-therapist]').forEach(b=>b.onclick=async()=>{
+    const t=therapists.find(x=>x.id==b.dataset.editTherapist),f=$('#therapist-form');
+    f.id.value=t.id;f.name.value=t.full_name;f.title.value=t.title||'';f.email.value=t.email||'';f.phone.value=t.phone||'';f.qualifications.value=t.qualifications||'';f.bio.value=t.bio||'';
+    $$('input[name="service_ids"]',f).forEach(x=>x.checked=false);
+    const r=await sb.from('therapist_services').select('service_id').eq('therapist_id',t.id);
+    const set=new Set((r.data||[]).map(x=>String(x.service_id)));
+    $$('input[name="service_ids"]',f).forEach(x=>x.checked=set.has(x.value));
+    f.scrollIntoView({behavior:'smooth'});
+  });
+}
+async function saveTherapist(e){
+  e.preventDefault(); const f=e.target,d=fo(f);
+  const row={full_name:d.name.trim(),title:d.title||'',email:(d.email||'').trim().toLowerCase(),phone:d.phone||'',qualifications:d.qualifications||'',bio:d.bio||'',active:true};
+  let id,r;
+  if(d.id){id=Number(d.id);r=await sb.from('therapists').update(row).eq('id',id);}
+  else {r=await sb.from('therapists').insert(row).select('id').single();id=r.data?.id;}
+  if(r.error)return msg($('#admin-message'),r.error.message);
+  await sb.from('therapist_services').delete().eq('therapist_id',id);
+  const sids=$$('input[name="service_ids"]:checked',f).map(x=>Number(x.value));
+  if(sids.length){
+    const rr=await sb.from('therapist_services').insert(sids.map(service_id=>({therapist_id:id,service_id})));
+    if(rr.error)return msg($('#admin-message'),rr.error.message);
+  }
+  await sb.rpc('admin_link_therapist_account',{p_therapist_id:id});
+  f.reset();await loadTherapists();msg($('#admin-message'),'Therapist saved.',true);
+}
+
+async function loadAvailability(){
+  const id=Number($('#availability-therapist').value);
+  if(!id){$('#availability-list').innerHTML='';$('#blocks-list').innerHTML='';return;}
+  const [ar,br]=await Promise.all([
+    sb.from('availability').select('*').eq('therapist_id',id).order('weekday').order('start_time'),
+    sb.from('blocked_times').select('*').eq('therapist_id',id).gte('block_date',new Date().toISOString().slice(0,10)).order('block_date')
+  ]);
+  const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  $('#availability-list').innerHTML=(ar.data||[]).map(x=>`<div class="patient-card"><strong>${days[x.weekday]} ${hh(x.start_time)}–${hh(x.end_time)}</strong><button class="btn btn-danger btn-sm right" data-del-avail="${x.id}">Delete</button></div>`).join('')||'<div class="empty">No weekly availability yet.</div>';
+  $('#blocks-list').innerHTML=(br.data||[]).map(x=>`<div class="patient-card"><strong>${fmt(x.block_date)}</strong><div class="muted">${esc(x.reason||'Blocked')} · ${x.all_day?'All day':hh(x.start_time)+'–'+hh(x.end_time)}</div><button class="btn btn-danger btn-sm" data-del-block="${x.id}">Delete</button></div>`).join('')||'<div class="empty">No upcoming blocked time.</div>';
+  $$('[data-del-avail]').forEach(x=>x.onclick=async()=>{await sb.from('availability').delete().eq('id',Number(x.dataset.delAvail));loadAvailability();});
+  $$('[data-del-block]').forEach(x=>x.onclick=async()=>{await sb.from('blocked_times').delete().eq('id',Number(x.dataset.delBlock));loadAvailability();});
+}
+async function saveAvailability(e){
+  e.preventDefault();const id=Number($('#availability-therapist').value);if(!id)return msg($('#admin-message'),'Choose a therapist first.');
+  const d=fo(e.target),r=await sb.from('availability').insert({therapist_id:id,weekday:Number(d.weekday),start_time:d.start_time,end_time:d.end_time});
+  if(r.error)return msg($('#admin-message'),r.error.message);await loadAvailability();msg($('#admin-message'),'Availability added.',true);
+}
+async function saveBlock(e){
+  e.preventDefault();const id=Number($('#availability-therapist').value);if(!id)return msg($('#admin-message'),'Choose a therapist first.');
+  const d=fo(e.target),r=await sb.from('blocked_times').insert({therapist_id:id,block_date:d.date,start_time:d.start_time,end_time:d.end_time,reason:d.reason||'Unavailable',all_day:false});
+  if(r.error)return msg($('#admin-message'),r.error.message);e.target.reset();await loadAvailability();msg($('#admin-message'),'Blocked time added.',true);
+}
+
+async function loadClosures(){
+  const r=await sb.from('center_closures').select('*').gte('closure_date',new Date().toISOString().slice(0,10)).order('closure_date');
+  $('#closures-list').innerHTML=(r.data||[]).map(x=>`<div class="patient-card"><strong>${fmt(x.closure_date)}</strong><div class="muted">${esc(x.reason)}</div><button class="btn btn-danger btn-sm" data-del-closure="${x.id}">Delete</button></div>`).join('')||'<div class="empty">No upcoming closures.</div>';
+  $$('[data-del-closure]').forEach(x=>x.onclick=async()=>{await sb.from('center_closures').delete().eq('id',Number(x.dataset.delClosure));loadClosures();});
+}
+async function saveClosure(e){
+  e.preventDefault();const d=fo(e.target),r=await sb.from('center_closures').upsert({closure_date:d.date,reason:d.reason||'Center closed'},{onConflict:'closure_date'});
+  if(r.error)return msg($('#admin-message'),r.error.message);e.target.reset();loadClosures();msg($('#admin-message'),'Closure saved.',true);
+}
+
+async function getSettings(){
+  const r=await sb.from('settings').select('key,value'); if(r.error)throw r.error;
+  return Object.fromEntries((r.data||[]).map(x=>[x.key,x.value]));
+}
+async function putSetting(key,value){return sb.from('settings').upsert({key,value},{onConflict:'key'});}
+async function loadSettings(){
+  try{
+    const s=await getSettings(),theme=s.theme||{},f=$('#theme-form');
+    f.primary_color.value=theme.primary||'#15484d';f.accent_color.value=theme.accent||'#dd438c';f.ink_color.value=theme.ink||'#17383d';f.card_radius.value=parseInt(theme.radius)||18;f.hero_style.value=theme.hero_style||'split';
+    const c=$('#content-settings-form'),ann=s.announcement||{};
+    c.announcement_text.value=ann.text||'';c.announcement_enabled.value=ann.enabled?'1':'0';c.show_gallery.value=s.show_gallery===false?'0':'1';c.show_testimonials.value=s.show_testimonials===false?'0':'1';c.show_programs.value=s.show_programs===false?'0':'1';
+    const b=$('#booking-rules-form');b.slot_interval_minutes.value=String(s.slot_interval_minutes||15);b.booking_lead_minutes.value=s.booking_lead_minutes||60;b.booking_horizon_days.value=s.booking_horizon_days||60;
+    renderHours(s.business_hours||{});
+  }catch(e){msg($('#admin-message'),e.message);}
+}
+async function saveBookingRules(e){
+  e.preventDefault();const d=fo(e.target);
+  for(const [k,v] of Object.entries({slot_interval_minutes:Number(d.slot_interval_minutes),booking_lead_minutes:Number(d.booking_lead_minutes),booking_horizon_days:Number(d.booking_horizon_days)})){
+    const r=await putSetting(k,v);if(r.error)return msg($('#admin-message'),r.error.message);
+  }
+  msg($('#admin-message'),'Booking rules saved.',true);
+}
+async function saveTheme(e){
+  e.preventDefault();const d=fo(e.target),value={primary:d.primary_color,accent:d.accent_color,ink:d.ink_color,radius:`${Number(d.card_radius)}px`,hero_style:d.hero_style};
+  const r=await putSetting('theme',value);if(r.error)return msg($('#admin-message'),r.error.message);msg($('#admin-message'),'Theme saved. Refresh the public site to see it.',true);
+}
+async function saveDisplay(e){
+  e.preventDefault();const d=fo(e.target);
+  const vals={announcement:{enabled:d.announcement_enabled==='1',text:d.announcement_text||''},show_gallery:d.show_gallery==='1',show_testimonials:d.show_testimonials==='1',show_programs:d.show_programs==='1'};
+  for(const [k,v] of Object.entries(vals)){const r=await putSetting(k,v);if(r.error)return msg($('#admin-message'),r.error.message);}
+  msg($('#admin-message'),'Display settings saved.',true);
+}
+function renderHours(hours){
+  const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  $('#hours-grid').innerHTML=days.map((name,i)=>{
+    const v=hours[String(i)]||[];
+    return `<div class="form-grid" style="margin-bottom:8px"><div class="field"><label>${name}</label><select name="open_${i}"><option value="1" ${v.length?'selected':''}>Open</option><option value="0" ${!v.length?'selected':''}>Closed</option></select></div><div class="field"><label>Start</label><input type="time" name="start_${i}" value="${v[0]||'09:30'}"></div><div class="field"><label>End</label><input type="time" name="end_${i}" value="${v[1]||'20:00'}"></div></div>`;
+  }).join('');
+}
+async function saveHours(e){
+  e.preventDefault();const d=fo(e.target),hours={};
+  for(let i=0;i<7;i++)if(d[`open_${i}`]==='1')hours[String(i)]=[d[`start_${i}`],d[`end_${i}`]];
+  const r=await putSetting('business_hours',hours);if(r.error)return msg($('#admin-message'),r.error.message);msg($('#admin-message'),'Clinic hours saved.',true);
+}
+
+async function loadContent(){
+  const r=await sb.from('content_items').select('*').order('type').order('sort_order');if(r.error)return msg($('#admin-message'),r.error.message);
+  $('#content-list').innerHTML=(r.data||[]).map(x=>`<div class="patient-card"><strong>${esc(x.type)} · ${esc(x.title||'(untitled)')}</strong><div class="muted">${esc((x.body||'').slice(0,120))}</div>${x.image_url?`<small>Image attached</small><br>`:''}<button class="btn btn-danger btn-sm" data-del-content="${x.id}">Delete</button></div>`).join('')||'<div class="empty">No content yet.</div>';
+  $$('[data-del-content]').forEach(x=>x.onclick=async()=>{await sb.from('content_items').delete().eq('id',Number(x.dataset.delContent));loadContent();});
+}
+async function saveContent(e){
+  e.preventDefault();const d=fo(e.target);let image=d.image_url||null;
+  const file=e.target.querySelector('[name="image_file"]')?.files?.[0];
+  if(file){
+    if(file.size>5*1024*1024)return msg($('#admin-message'),'Image must be 5 MB or smaller.');
+    const path=`${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g,'-')}`;
+    const up=await sb.storage.from('website-media').upload(path,file,{upsert:false});if(up.error)return msg($('#admin-message'),up.error.message);
+    image=sb.storage.from('website-media').getPublicUrl(path).data.publicUrl;
+  }
+  const r=await sb.from('content_items').insert({type:d.type,title:d.title||'',body:d.body||'',image_url:image,sort_order:Number(d.sort_order||0),active:true});
+  if(r.error)return msg($('#admin-message'),r.error.message);e.target.reset();loadContent();msg($('#admin-message'),'Content published.',true);
 }
 
 async function initTherapist(){
- if(!await ensureRole(['therapist','admin','super_admin']))return;$('#therapist-user').textContent=`${me.name} · ${me.role}`;$('#therapist-logout').onclick=logout;$('#refresh-schedule').onclick=loadSchedule;$('#therapist-availability-form').onsubmit=e=>save(e,false);$('#therapist-block-form').onsubmit=e=>save(e,true);await Promise.all([loadSchedule(),loadAvail()]);
- async function loadSchedule(){try{const d=await api('therapist/schedule');$('#therapist-schedule').innerHTML=(d.appointments||[]).map(a=>`<div class="appt-card"><div class="toolbar"><strong>${esc(a.patient_name)}</strong>${statusBadge(a.status)}<span class="right">${fmtDate(a.appointment_date)}</span></div><div>${esc(a.start_time)}–${esc(a.end_time)} · ${esc(a.service_title)} · ${esc(a.mode)}</div><div class="toolbar" style="margin-top:10px">${a.status==='pending'?`<button class="btn btn-secondary btn-sm" data-tstatus="confirmed" data-id="${a.id}">Confirm</button>`:''}${['pending','confirmed'].includes(a.status)?`<button class="btn btn-primary btn-sm" data-tstatus="completed" data-id="${a.id}">Complete</button><button class="btn btn-secondary btn-sm" data-tstatus="no_show" data-id="${a.id}">No show</button>`:''}</div></div>`).join('')||'<div class="empty">No upcoming sessions.</div>';$$('[data-tstatus]').forEach(b=>b.onclick=async()=>{try{await api('therapist/appointment-status',{method:'POST',body:{id:b.dataset.id,status:b.dataset.tstatus}});await loadSchedule()}catch(x){msg($('#therapist-message'),x.message)}})}catch(x){msg($('#therapist-message'),x.message)}}
- async function loadAvail(){try{const d=await api('therapist/availability');$('#therapist-availability-list').innerHTML=(d.availability||[]).map(a=>`<div class="patient-card"><strong>${dayNames[a.weekday]}</strong> · ${esc(a.start_time)}–${esc(a.end_time)}</div>`).join('')||'<div class="empty">No availability configured.</div>'}catch(x){msg($('#therapist-message'),x.message)}}
- async function save(e,block){e.preventDefault();const d=formObj(e.target);if(block)d.action='block';try{await api('therapist/availability',{method:'POST',body:d});e.target.reset();await loadAvail();msg($('#therapist-message'),block?'Unavailable time blocked.':'Availability added.','good')}catch(x){msg($('#therapist-message'),x.message)}}
+  if(!await requireRole(['therapist','admin','super_admin']))return;
+  $('#therapist-user').textContent=`${profile.full_name||profile.email} · ${profile.role}`;
+  $('#therapist-logout').onclick=logout;
+  let q=sb.from('therapists').select('*').eq('active',true);
+  if(profile.role==='therapist')q=q.eq('user_id',profile.id);
+  const r=await q.limit(1).maybeSingle();
+  if(r.error||!r.data){msg($('#therapist-message'),'No therapist profile is linked to this account yet. Ask an administrator to save a therapist profile using the same email address.');return;}
+  const tid=r.data.id;
+  $('#refresh-schedule').onclick=()=>loadTherapistSchedule(tid);
+  $('#therapist-availability-form').onsubmit=e=>saveTherapistAvailability(e,tid);
+  $('#therapist-block-form').onsubmit=e=>saveTherapistBlock(e,tid);
+  await Promise.all([loadTherapistSchedule(tid),loadTherapistAvailability(tid)]);
+}
+async function loadTherapistSchedule(tid){
+  const today=new Date().toISOString().slice(0,10);
+  const r=await sb.from('appointments').select('id,appointment_date,start_time,end_time,status,mode,patients(full_name),services(title)').eq('therapist_id',tid).gte('appointment_date',today).in('status',['pending','confirmed']).order('appointment_date').order('start_time');
+  if(r.error)return msg($('#therapist-message'),r.error.message);
+  $('#therapist-schedule').innerHTML=(r.data||[]).map(a=>`<div class="appt-card"><strong>${fmt(a.appointment_date)} · ${hh(a.start_time)}</strong><div>${esc(a.patients?.full_name||'')} · ${esc(a.services?.title||'')} · ${esc(a.mode)}</div><div class="toolbar" style="margin-top:8px"><span class="badge ${a.status}">${a.status}</span><button class="btn btn-secondary btn-sm" data-appt="${a.id}" data-st="confirmed">Confirm</button><button class="btn btn-secondary btn-sm" data-appt="${a.id}" data-st="completed">Complete</button><button class="btn btn-secondary btn-sm" data-appt="${a.id}" data-st="no_show">No show</button></div></div>`).join('')||'<div class="empty">No upcoming sessions.</div>';
+  $$('[data-appt]').forEach(b=>b.onclick=async()=>{const rr=await sb.rpc('set_appointment_status',{p_appointment_id:Number(b.dataset.appt),p_status:b.dataset.st});if(rr.error)msg($('#therapist-message'),rr.error.message);else loadTherapistSchedule(tid);});
+}
+async function loadTherapistAvailability(tid){
+  const [ar,br]=await Promise.all([
+    sb.from('availability').select('*').eq('therapist_id',tid).order('weekday').order('start_time'),
+    sb.from('blocked_times').select('*').eq('therapist_id',tid).gte('block_date',new Date().toISOString().slice(0,10)).order('block_date')
+  ]);
+  const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  $('#therapist-availability-list').innerHTML=(ar.data||[]).map(x=>`<div class="patient-card"><strong>${days[x.weekday]} ${hh(x.start_time)}–${hh(x.end_time)}</strong><button class="btn btn-danger btn-sm right" data-del-ta="${x.id}">Delete</button></div>`).join('')+
+    (br.data||[]).map(x=>`<div class="patient-card"><strong>Blocked ${fmt(x.block_date)}</strong><div class="muted">${esc(x.reason||'Unavailable')} · ${hh(x.start_time)}–${hh(x.end_time)}</div><button class="btn btn-danger btn-sm" data-del-tb="${x.id}">Delete</button></div>`).join('');
+  $$('[data-del-ta]').forEach(x=>x.onclick=async()=>{await sb.from('availability').delete().eq('id',Number(x.dataset.delTa));loadTherapistAvailability(tid);});
+  $$('[data-del-tb]').forEach(x=>x.onclick=async()=>{await sb.from('blocked_times').delete().eq('id',Number(x.dataset.delTb));loadTherapistAvailability(tid);});
+}
+async function saveTherapistAvailability(e,tid){
+  e.preventDefault();const d=fo(e.target),r=await sb.from('availability').insert({therapist_id:tid,weekday:Number(d.weekday),start_time:d.start_time,end_time:d.end_time});
+  if(r.error)return msg($('#therapist-message'),r.error.message);loadTherapistAvailability(tid);
+}
+async function saveTherapistBlock(e,tid){
+  e.preventDefault();const d=fo(e.target),r=await sb.from('blocked_times').insert({therapist_id:tid,block_date:d.date,reason:d.reason||'Unavailable',start_time:d.start_time,end_time:d.end_time,all_day:false});
+  if(r.error)return msg($('#therapist-message'),r.error.message);e.target.reset();loadTherapistAvailability(tid);
 }
 
-if(app==='portal')initPortal();if(app==='admin')initAdmin();if(app==='therapist')initTherapist();
+const app=document.body.dataset.app;
+if(app==='admin')initAdmin().catch(e=>msg($('#admin-message'),e.message));
+if(app==='therapist')initTherapist().catch(e=>msg($('#therapist-message'),e.message));
+
 })();
