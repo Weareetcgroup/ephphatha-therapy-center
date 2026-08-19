@@ -12,7 +12,10 @@ $$('[data-phone-secondary]').forEach(el=>{el.textContent=c.phoneSecondary;if(el.
 $$('[data-email]').forEach(el=>{el.textContent=c.email;if(el.tagName==='A')el.href='mailto:'+c.email;});
 $$('[data-address]').forEach(el=>el.textContent=c.address);$$('[data-locality]').forEach(el=>el.textContent=c.locality);
 $$('[data-whatsapp]').forEach(el=>el.href=`https://wa.me/${c.whatsappDigits}?text=${encodeURIComponent('Hello Ephphatha Therapy Center, I would like to enquire about an appointment.')}`);
-$$('[data-directions]').forEach(el=>el.href=`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.mapQuery)}`);
+const initialDirections=c.mapUrl||`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.mapQuery||'Ephphatha Therapy Center')}`;
+$$('[data-directions]').forEach(el=>el.href=initialDirections);
+const initialMapFrame=$('.map-frame');
+if(initialMapFrame)initialMapFrame.src=`https://www.google.com/maps?q=${encodeURIComponent(c.mapQuery||'Ephphatha Therapy Center')}&output=embed`;
 $$('[data-year]').forEach(el=>el.textContent=new Date().getFullYear());
 
 const servicesRoot=$('[data-services]');if(servicesRoot&&cfg.services)servicesRoot.innerHTML=cfg.services.map(s=>`<a class="service-card" href="${s.href}"><img src="${s.icon}" alt="" aria-hidden="true"><h3>${s.title}</h3><p>${s.summary}</p><span class="more">Explore service →</span></a>`).join('');
@@ -42,9 +45,51 @@ Promise.all([
   if(theme.hero_style)document.body.dataset.heroStyle=theme.hero_style;
   if(ann.enabled&&ann.text){const bar=document.createElement('div');bar.className='site-announcement';bar.textContent=ann.text;document.body.prepend(bar);}
   if(s.business_hours)renderHours(s.business_hours);
+  if(s.clinic_name)$$('.brand-name').forEach(el=>el.textContent=String(s.clinic_name).toUpperCase());
+  if(s.tagline)$$('.footer .brand-sub').forEach(el=>el.textContent=s.tagline);
   if(s.phone_primary)$$('[data-phone-primary]').forEach(el=>{el.textContent=s.phone_primary;if(el.tagName==='A')el.href='tel:'+String(s.phone_primary).replace(/[^\d+]/g,'');});
   if(s.phone_secondary)$$('[data-phone-secondary]').forEach(el=>{el.textContent=s.phone_secondary;if(el.tagName==='A')el.href='tel:'+String(s.phone_secondary).replace(/[^\d+]/g,'');});
   if(s.email)$$('[data-email]').forEach(el=>{el.textContent=s.email;if(el.tagName==='A')el.href='mailto:'+s.email;});
+  if(s.address)$$('[data-address]').forEach(el=>el.textContent=s.address);
+  const whatsappValue=s.whatsapp||s.phone_primary;
+  if(whatsappValue){
+    const waDigits=String(whatsappValue).replace(/\D/g,'');
+    $$('[data-whatsapp]').forEach(el=>el.href=`https://wa.me/${waDigits}?text=${encodeURIComponent('Hello Ephphatha Therapy Center, I would like to enquire about an appointment.')}`);
+  }
+  const exactMapUrl=s.map_url||initialDirections;
+  $$('[data-directions]').forEach(el=>el.href=exactMapUrl);
+  const mapQuery=s.map_embed_query||s.clinic_name||c.mapQuery||'Ephphatha Therapy Center';
+  const mapFrame=$('.map-frame');
+  if(mapFrame)mapFrame.src=`https://www.google.com/maps?q=${encodeURIComponent(mapQuery)}&output=embed`;
+  if(s.instagram_url)$$('a[href*="instagram.com"]').forEach(el=>el.href=s.instagram_url);
+
+  const pathName=location.pathname.toLowerCase();
+  const isAbout=pathName.endsWith('/about')||pathName.endsWith('/about.html');
+  if(isAbout){
+    const heroTitle=$('.page-hero h1'),heroLead=$('.page-hero .lead');
+    if(heroTitle&&s.about_hero_title)heroTitle.textContent=s.about_hero_title;
+    if(heroLead&&s.about_intro)heroLead.textContent=s.about_intro;
+    const founderName=$('.founder-badge strong'),founderTitle=$('.founder-badge p');
+    if(founderName&&s.founder_name)founderName.textContent=s.founder_name;
+    if(founderTitle&&s.founder_title)founderTitle.textContent=s.founder_title;
+    const monogram=$('.founder-monogram');
+    if(monogram&&s.founder_name){
+      const initials=String(s.founder_name).trim().split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase();
+      if(initials)monogram.textContent=initials;
+    }
+    const founderCopy=$('.founder > div:last-child');
+    if(founderCopy){
+      const h2=founderCopy.querySelector('h2'),lead=founderCopy.querySelector('.lead');
+      if(h2&&s.about_section_heading)h2.textContent=s.about_section_heading;
+      if(lead&&s.about_section_body)lead.textContent=s.about_section_body;
+    }
+  }
+  const isContact=pathName.endsWith('/contact')||pathName.endsWith('/contact.html');
+  if(isContact){
+    const heroTitle=$('.page-hero h1'),heroLead=$('.page-hero .lead');
+    if(heroTitle&&s.contact_hero_title)heroTitle.textContent=s.contact_hero_title;
+    if(heroLead&&s.contact_intro)heroLead.textContent=s.contact_intro;
+  }
 
   const isHome=location.pathname==='/'||location.pathname.endsWith('/index.html')||location.pathname.endsWith('index.html');
   if(!isHome)return;

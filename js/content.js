@@ -6,9 +6,10 @@ window.EPH_CONFIG = {
     whatsappDigits:"919791192699",email:"ephphathatherapycenter@gmail.com",
     address:"Vishwas Apartment, B-Block, Soundariya Nagar, Gowrivakkam, Chennai, Tamil Nadu 600073",
     locality:"Gowrivakkam / Sembakkam, Chennai",
-    mapQuery:"Vishwas Apartment B Block Soundariya Nagar Gowrivakkam Chennai 600073"
+    mapUrl:"https://maps.app.goo.gl/bZVv7D9i8jtyvMfr6",
+    mapQuery:"Ephphatha Therapy Center"
   },
-  // Current Google business listing hours checked August 2026. Admin can override these after V2 database setup.
+  // Admin can override these values through Supabase-backed Website & Theme settings.
   hours:{0:null,1:["09:30","20:00"],2:["09:30","20:00"],3:["09:30","20:00"],4:["09:30","20:00"],5:["09:30","20:00"],6:["09:30","12:30"]},
   services: [
     {title:"Speech & Language Therapy",icon:"assets/speech.svg",summary:"Individualized support for speech clarity, language development, fluency, social communication and functional communication.",href:"services.html#speech"},
@@ -23,7 +24,7 @@ window.EPH_CONFIG = {
   faqs: [
     {q:"How do I know which therapy my child needs?",a:"You do not need to decide that before contacting us. Start by sharing your concern. A clinician can recommend an assessment or the most appropriate next step based on the child's needs."},
     {q:"Do you provide both in-clinic and online sessions?",a:"Ephphatha provides in-clinic services and can offer online consultation or selected therapy services where clinically suitable. Contact the center to confirm the best format for your needs."},
-    {q:"How long is a therapy session?",a:"Session duration and frequency depend on the assessment, age, goals and type of therapy. The care plan is discussed with the family before regular sessions begin."},
+    {q:"How long is a therapy session?",a:"Session duration can be configured by the center for each service. The current standard is 30 minutes unless a different duration is selected for that service or care plan."},
     {q:"Will parents receive guidance for home practice?",a:"Yes. Therapy works best when useful strategies carry into daily life, so home guidance and caregiver collaboration may be included as part of the plan."},
     {q:"Do you work only with children?",a:"No. Ephphatha supports children and also offers selected communication-related services for adults. Contact the center with the specific concern so the team can confirm suitability."}
   ]

@@ -85,6 +85,74 @@ async function initAdmin(){
     $('#refresh-users').onclick=loadUsers;
   }
 
+  // Make service duration fully editable. 30 minutes is the current default,
+  // while each service can be changed independently when needed.
+  const serviceForm=$('#service-form');
+  if(serviceForm){
+    const durationField=serviceForm.querySelector('[name="duration_minutes"]');
+    if(durationField && durationField.tagName==='SELECT'){
+      const input=document.createElement('input');
+      input.type='number';
+      input.name='duration_minutes';
+      input.min='15';
+      input.max='240';
+      input.step='1';
+      input.value='30';
+      input.defaultValue='30';
+      input.required=true;
+      durationField.replaceWith(input);
+      const hint=document.createElement('small');
+      hint.className='muted';
+      hint.textContent='Set the session length for this service. Default is 30 minutes; change it anytime (15–240 minutes). Future slots use the saved duration.';
+      input.insertAdjacentElement('afterend',hint);
+    }
+  }
+
+  // Add editable center/contact/about settings to the existing Website & Theme view.
+  const websiteView=$('[data-view-panel="website"]');
+  if(websiteView && !$('#center-details-form')){
+    const centerPanel=document.createElement('div');
+    centerPanel.className='panel';
+    centerPanel.style.marginBottom='20px';
+    centerPanel.innerHTML=`
+      <div class="page-head" style="margin-bottom:16px">
+        <div>
+          <h3>Center details & website text</h3>
+          <p>Change contact details, the exact Google Maps location and key About/Contact text without editing code.</p>
+        </div>
+      </div>
+      <form id="center-details-form" class="form-grid">
+        <div class="field"><label>Center name</label><input name="clinic_name" required></div>
+        <div class="field"><label>Established year</label><input name="established_year" inputmode="numeric"></div>
+        <div class="field full"><label>Tagline</label><input name="tagline"></div>
+
+        <div class="field"><label>Primary phone</label><input name="phone_primary"></div>
+        <div class="field"><label>Alternate phone</label><input name="phone_secondary"></div>
+        <div class="field"><label>WhatsApp number</label><input name="whatsapp" placeholder="+91 ..."></div>
+        <div class="field"><label>Email</label><input name="email" type="email"></div>
+
+        <div class="field full"><label>Displayed center address</label><textarea name="address"></textarea></div>
+        <div class="field full"><label>Exact Google Maps link</label><input name="map_url" type="url" placeholder="https://maps.app.goo.gl/..."><small class="muted">The Open directions buttons use this exact link.</small></div>
+        <div class="field full"><label>Map embed search</label><input name="map_embed_query" placeholder="Ephphatha Therapy Center"><small class="muted">Used for the map shown on the Contact page.</small></div>
+        <div class="field full"><label>Instagram URL</label><input name="instagram_url" type="url"></div>
+
+        <div class="field full"><label>About page main heading</label><input name="about_hero_title"></div>
+        <div class="field full"><label>About page introduction</label><textarea name="about_intro"></textarea></div>
+        <div class="field"><label>Founder name</label><input name="founder_name"></div>
+        <div class="field"><label>Founder title</label><input name="founder_title"></div>
+        <div class="field full"><label>About section heading</label><input name="about_section_heading"></div>
+        <div class="field full"><label>About section text</label><textarea name="about_section_body"></textarea></div>
+
+        <div class="field full"><label>Contact page heading</label><input name="contact_hero_title"></div>
+        <div class="field full"><label>Contact page introduction</label><textarea name="contact_intro"></textarea></div>
+
+        <div class="field full"><button class="btn btn-primary">Save center details</button></div>
+      </form>`;
+    const firstPanel=websiteView.querySelector('.grid-2');
+    if(firstPanel) websiteView.insertBefore(centerPanel, firstPanel);
+    else websiteView.appendChild(centerPanel);
+  }
+
   $('#refresh-dashboard').onclick=loadDashboard;
   $('#refresh-admin-appts').onclick=loadAppointments;
   $('#refresh-families').onclick=loadFamilies;
@@ -99,6 +167,7 @@ async function initAdmin(){
   $('#content-settings-form').onsubmit=saveDisplay;
   $('#hours-form').onsubmit=saveHours;
   $('#content-item-form').onsubmit=saveContent;
+  if($('#center-details-form')) $('#center-details-form').onsubmit=saveCenterDetails;
   $$('.theme-swatch').forEach(b=>b.onclick=()=>{
     const [p,a,i]=b.dataset.theme.split('|'),f=$('#theme-form');
     f.primary_color.value=p; f.accent_color.value=a; f.ink_color.value=i;
@@ -208,7 +277,10 @@ async function saveService(e){
   if(d.id)r=await sb.from('services').update(row).eq('id',Number(d.id));
   else {row.slug=d.title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');r=await sb.from('services').insert(row);}
   if(r.error)return msg($('#admin-message'),r.error.message);
-  e.target.reset(); await loadServices(); msg($('#admin-message'),'Service saved.',true);
+  e.target.reset();
+  if(e.target.duration_minutes)e.target.duration_minutes.value=30;
+  await loadServices();
+  msg($('#admin-message'),'Service saved. Future appointment slots will use the saved session duration.',true);
 }
 
 async function loadTherapists(){
@@ -290,8 +362,53 @@ async function loadSettings(){
     const c=$('#content-settings-form'),ann=s.announcement||{};
     c.announcement_text.value=ann.text||'';c.announcement_enabled.value=ann.enabled?'1':'0';c.show_gallery.value=s.show_gallery===false?'0':'1';c.show_testimonials.value=s.show_testimonials===false?'0':'1';c.show_programs.value=s.show_programs===false?'0':'1';
     const b=$('#booking-rules-form');b.slot_interval_minutes.value=String(s.slot_interval_minutes||15);b.booking_lead_minutes.value=s.booking_lead_minutes||60;b.booking_horizon_days.value=s.booking_horizon_days||60;
+    const center=$('#center-details-form');
+    if(center){
+      const values={
+        clinic_name:s.clinic_name||'Ephphatha Therapy Center',
+        established_year:s.established_year||'2020',
+        tagline:s.tagline||'Every voice. Every milestone. Every possibility.',
+        phone_primary:s.phone_primary||'+91 97911 92699',
+        phone_secondary:s.phone_secondary||'+91 98401 19895',
+        whatsapp:s.whatsapp||s.phone_primary||'+91 97911 92699',
+        email:s.email||'ephphathatherapycenter@gmail.com',
+        address:s.address||'Vishwas Apartment, B-Block, Soundariya Nagar, Gowrivakkam, Chennai, Tamil Nadu 600073',
+        map_url:s.map_url||'https://maps.app.goo.gl/bZVv7D9i8jtyvMfr6',
+        map_embed_query:s.map_embed_query||'Ephphatha Therapy Center',
+        instagram_url:s.instagram_url||'https://www.instagram.com/ephphathatherapycenter/',
+        about_hero_title:s.about_hero_title||'Care that listens before it plans.',
+        about_intro:s.about_intro||'',
+        founder_name:s.founder_name||'Diana Nixon',
+        founder_title:s.founder_title||'Founder & Clinical Lead · Senior SLP & Audiologist',
+        about_section_heading:s.about_section_heading||'A multidisciplinary center with communication at its heart.',
+        about_section_body:s.about_section_body||'',
+        contact_hero_title:s.contact_hero_title||'Start with a conversation.',
+        contact_intro:s.contact_intro||''
+      };
+      for(const [k,v] of Object.entries(values)) if(center.elements[k]) center.elements[k].value=v;
+    }
+    const newServiceDuration=$('#service-form [name="duration_minutes"]');
+    if(newServiceDuration && !$('#service-form [name="id"]').value) newServiceDuration.value=30;
     renderHours(s.business_hours||{});
   }catch(e){msg($('#admin-message'),e.message);}
+}
+async function saveCenterDetails(e){
+  e.preventDefault();
+  const d=fo(e.target);
+  const keys=[
+    'clinic_name','established_year','tagline',
+    'phone_primary','phone_secondary','whatsapp','email',
+    'address','map_url','map_embed_query','instagram_url',
+    'about_hero_title','about_intro','founder_name','founder_title',
+    'about_section_heading','about_section_body',
+    'contact_hero_title','contact_intro'
+  ];
+  for(const key of keys){
+    const value=String(d[key]||'').trim();
+    const r=await putSetting(key,value);
+    if(r.error)return msg($('#admin-message'),r.error.message);
+  }
+  msg($('#admin-message'),'Center details saved. Refresh the public website to see the changes.',true);
 }
 async function saveBookingRules(e){
   e.preventDefault();const d=fo(e.target);
