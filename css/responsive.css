@@ -1,0 +1,389 @@
+/* Ephphatha Universal Responsive Layer v7.2
+   Public website: phone, tablet, laptop, desktop, portrait and landscape.
+   Priority: no critical navigation/action disappears on smaller devices. */
+
+:root{
+  --eph-mobile-dock-h:72px;
+  --eph-tablet-strip-h:52px;
+}
+
+/* Desktop: restore direct phone access in the header */
+@media (min-width:1181px){
+  .header-actions [data-phone-primary]{
+    display:inline-flex!important;
+    align-items:center!important;
+    gap:7px!important;
+  }
+  .header-actions [data-phone-primary]::before{
+    content:"☎";
+    font-size:.95em;
+  }
+  .eph-device-nav-action,
+  .eph-mobile-dock{display:none!important}
+}
+
+/* Tablet + smaller laptop: keep every page link directly reachable.
+   Header becomes a two-row adaptive layout instead of hiding navigation. */
+@media (max-width:1180px){
+  body{overflow-x:hidden!important}
+
+  .header{
+    padding:7px 0!important;
+  }
+  .header-inner{
+    height:auto!important;
+    min-height:68px!important;
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) auto!important;
+    grid-template-areas:
+      "brand actions"
+      "nav nav"!important;
+    align-items:center!important;
+    gap:8px 12px!important;
+    padding:8px 10px!important;
+    border-radius:20px!important;
+  }
+  .brand{
+    grid-area:brand!important;
+    min-width:0!important;
+    max-width:100%!important;
+  }
+  .brand-copy{min-width:0!important}
+  .brand-name,
+  .brand-sub{
+    max-width:min(48vw,330px)!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+    white-space:nowrap!important;
+  }
+
+  .header-actions{
+    grid-area:actions!important;
+    display:flex!important;
+    align-items:center!important;
+    justify-content:flex-end!important;
+    gap:6px!important;
+  }
+  .header-actions [data-phone-primary]{
+    display:inline-flex!important;
+    align-items:center!important;
+    min-height:40px!important;
+    padding:0 12px!important;
+  }
+  .header-actions [data-phone-primary]::before{content:"☎";margin-right:5px}
+  .header-actions .portal-access{
+    display:inline-flex!important;
+  }
+  .header-actions .btn-primary{
+    display:inline-flex!important;
+  }
+  .menu-btn{display:none!important}
+
+  .nav{
+    grid-area:nav!important;
+    width:100%!important;
+    max-width:100%!important;
+    display:flex!important;
+    position:static!important;
+    transform:none!important;
+    opacity:1!important;
+    visibility:visible!important;
+    pointer-events:auto!important;
+    justify-content:flex-start!important;
+    overflow-x:auto!important;
+    overflow-y:hidden!important;
+    overscroll-behavior-inline:contain!important;
+    scroll-snap-type:x proximity!important;
+    scrollbar-width:thin!important;
+    white-space:nowrap!important;
+    padding:4px!important;
+    gap:4px!important;
+  }
+  .nav a{
+    display:inline-flex!important;
+    flex:0 0 auto!important;
+    scroll-snap-align:start!important;
+    min-height:38px!important;
+    align-items:center!important;
+    justify-content:center!important;
+  }
+  .nav-special{display:none!important}
+
+  .hero-grid,.split,.contact-grid,.online-grid{
+    min-width:0!important;
+  }
+  img,video,iframe,svg{max-width:100%!important}
+
+  /* Avoid desktop-only fixed widths */
+  .section-head,
+  .page-head{min-width:0!important}
+  .service-card,.quote,.path-step,.story-card,.contact-card,.form-card,
+  .v2-team-card,.v2-content-card,.panel{
+    min-width:0!important;
+  }
+}
+
+/* iPad portrait / small tablet */
+@media (max-width:900px){
+  :root{--eph-section-space:72px}
+
+  .container{width:min(100% - 28px,1240px)!important}
+  .brand img{width:44px!important;height:44px!important}
+  .brand-name{font-size:.82rem!important}
+  .brand-sub{font-size:.64rem!important}
+
+  .header-actions [data-phone-primary]{
+    font-size:.78rem!important;
+  }
+  .header-actions .btn{
+    min-height:40px!important;
+    padding:0 11px!important;
+    font-size:.76rem!important;
+  }
+
+  .hero-grid,
+  .split,
+  .contact-grid,
+  .online-grid,
+  .about-split{
+    grid-template-columns:1fr!important;
+    gap:34px!important;
+  }
+  .hero-copy{order:1}
+  .hero-media{order:2;max-width:760px!important;margin-inline:auto!important}
+  .hero h1{font-size:clamp(2.7rem,8vw,4.3rem)!important}
+  .page-hero h1{font-size:clamp(2.45rem,7vw,3.9rem)!important}
+
+  .stats{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .services-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .path{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .testimonials,.v2-team-grid,.v2-content-grid,.v2-gallery-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  }
+  .concern-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+
+  .story-card{
+    min-height:0!important;
+    height:auto!important;
+    max-height:none!important;
+  }
+  .story-mini[data-eph-flow="1"],.story-mini{
+    position:relative!important;
+    left:auto!important;right:auto!important;bottom:auto!important;top:auto!important;
+    width:auto!important;
+    margin-top:24px!important;
+  }
+
+  .footer-grid{grid-template-columns:1fr 1fr!important}
+}
+
+/* Phones: preserve all functionality with two direct access layers:
+   1) scrollable page-navigation strip in the header
+   2) fixed 4-action dock: Call / WhatsApp / Sign in / Book */
+@media (max-width:700px){
+  :root{
+    --eph-section-space:60px;
+    --eph-mobile-dock-h:70px;
+  }
+  html{scroll-padding-top:132px!important}
+  body{
+    padding-bottom:calc(var(--eph-mobile-dock-h) + env(safe-area-inset-bottom,0px) + 8px)!important;
+  }
+
+  .container{width:min(100% - 22px,1240px)!important}
+
+  .header{
+    position:sticky!important;
+    top:0!important;
+    padding:5px 0!important;
+  }
+  .header-inner{
+    grid-template-columns:minmax(0,1fr)!important;
+    grid-template-areas:
+      "brand"
+      "nav"!important;
+    gap:7px!important;
+    padding:7px!important;
+    border-radius:17px!important;
+  }
+  .brand{
+    justify-content:flex-start!important;
+    padding-inline:4px!important;
+  }
+  .brand img{
+    width:40px!important;height:40px!important;
+  }
+  .brand-name{
+    font-size:.78rem!important;
+    max-width:70vw!important;
+  }
+  .brand-sub{
+    font-size:.6rem!important;
+    max-width:70vw!important;
+  }
+
+  /* Header actions are duplicated into the persistent dock below,
+     so the header itself remains compact without losing any feature. */
+  .header-actions{
+    display:none!important;
+  }
+  .nav{
+    border-radius:14px!important;
+    background:color-mix(in srgb,var(--eph-soft) 80%,white)!important;
+    padding:4px!important;
+    margin:0!important;
+  }
+  .nav a{
+    min-height:38px!important;
+    padding:8px 12px!important;
+    font-size:.78rem!important;
+  }
+  .nav .eph-device-nav-action{
+    display:inline-flex!important;
+    font-weight:850!important;
+    background:#fff!important;
+    border:1px solid var(--eph-line)!important;
+  }
+  .nav .eph-device-nav-call{color:var(--eph-primary-deep)!important}
+  .nav .eph-device-nav-signin{color:var(--eph-ink)!important}
+  .nav .eph-device-nav-book{
+    background:var(--eph-primary-deep)!important;
+    color:#fff!important;
+  }
+
+  .hero{padding:34px 0 48px!important}
+  .hero h1{
+    font-size:clamp(2.35rem,12vw,3.55rem)!important;
+    line-height:1.02!important;
+  }
+  .hero-copy .lead{font-size:1rem!important;line-height:1.62!important}
+  .hero-media{padding:9px!important;border-radius:24px!important}
+  .hero-media>img{border-radius:19px!important}
+  .float-card{
+    position:relative!important;
+    inset:auto!important;
+    width:100%!important;
+    margin-top:8px!important;
+  }
+  .hero-actions{
+    display:grid!important;
+    grid-template-columns:1fr!important;
+    gap:9px!important;
+  }
+  .hero-actions .btn{width:100%!important;min-height:48px!important}
+
+  .stats,
+  .services-grid,
+  .path,
+  .testimonials,
+  .v2-team-grid,
+  .v2-content-grid,
+  .v2-gallery-grid,
+  .concern-grid,
+  .footer-grid{
+    grid-template-columns:1fr!important;
+  }
+  .stats{gap:9px!important}
+  .stat{padding:17px!important}
+  .service-card{min-height:0!important}
+  .section-head{
+    align-items:flex-start!important;
+    flex-direction:column!important;
+    gap:14px!important;
+    margin-bottom:26px!important;
+  }
+  .section-head h2{
+    font-size:clamp(1.9rem,9vw,2.65rem)!important;
+  }
+  .page-hero h1{
+    font-size:clamp(2.2rem,10vw,3.2rem)!important;
+  }
+
+  .cta{
+    padding:28px 20px!important;
+    border-radius:24px!important;
+  }
+  .cta-actions{
+    display:grid!important;
+    grid-template-columns:1fr!important;
+    gap:9px!important;
+  }
+  .cta-actions .btn{width:100%!important}
+
+  .contact-card,.form-card,.service-detail,.story-card,.quote,.path-step{
+    padding-left:18px!important;
+    padding-right:18px!important;
+  }
+
+  .footer{margin-top:58px!important;padding-bottom:22px!important}
+  .footer-grid{gap:28px!important}
+  .footer-bottom{
+    flex-direction:column!important;
+    align-items:flex-start!important;
+    gap:8px!important;
+  }
+
+  /* Existing old 2-item bar is superseded by the universal 4-item dock. */
+  .mobile-bar{display:none!important}
+
+  .eph-mobile-dock{
+    position:fixed!important;
+    left:max(8px,env(safe-area-inset-left,8px))!important;
+    right:max(8px,env(safe-area-inset-right,8px))!important;
+    bottom:max(8px,env(safe-area-inset-bottom,8px))!important;
+    min-height:var(--eph-mobile-dock-h)!important;
+    z-index:2147482000!important;
+    display:grid!important;
+    grid-template-columns:repeat(4,minmax(0,1fr))!important;
+    gap:5px!important;
+    padding:6px!important;
+    border:1px solid color-mix(in srgb,var(--eph-line) 88%,transparent)!important;
+    border-radius:20px!important;
+    background:rgba(255,255,255,.96)!important;
+    box-shadow:0 18px 50px rgba(22,58,64,.22)!important;
+    backdrop-filter:blur(18px) saturate(150%)!important;
+  }
+  .eph-mobile-dock a{
+    min-width:0!important;
+    min-height:56px!important;
+    display:flex!important;
+    flex-direction:column!important;
+    align-items:center!important;
+    justify-content:center!important;
+    gap:2px!important;
+    padding:6px 3px!important;
+    border-radius:14px!important;
+    text-align:center!important;
+    text-decoration:none!important;
+    font-size:.66rem!important;
+    line-height:1.1!important;
+    font-weight:850!important;
+    color:var(--eph-ink)!important;
+    background:var(--eph-soft)!important;
+  }
+  .eph-mobile-dock a span:first-child{
+    font-size:1.05rem!important;
+    line-height:1!important;
+  }
+  .eph-mobile-dock .dock-call{background:color-mix(in srgb,var(--eph-primary) 14%,white)!important;color:var(--eph-primary-deep)!important}
+  .eph-mobile-dock .dock-whatsapp{background:#e9f8ef!important;color:#17683d!important}
+  .eph-mobile-dock .dock-signin{background:#f5f2fb!important;color:#4a3f72!important}
+  .eph-mobile-dock .dock-book{background:var(--eph-primary-deep)!important;color:#fff!important}
+}
+
+/* Very narrow devices */
+@media (max-width:380px){
+  .brand-name{font-size:.72rem!important}
+  .brand-sub{display:none!important}
+  .nav a{font-size:.72rem!important;padding:7px 10px!important}
+  .eph-mobile-dock a{font-size:.6rem!important}
+  .eph-mobile-dock a span:first-child{font-size:1rem!important}
+}
+
+/* Landscape phones: use width but preserve dock and direct navigation. */
+@media (max-height:520px) and (orientation:landscape) and (max-width:950px){
+  :root{--eph-mobile-dock-h:58px}
+  .header{position:relative!important}
+  .eph-mobile-dock{min-height:58px!important}
+  .eph-mobile-dock a{min-height:45px!important;flex-direction:row!important;gap:5px!important}
+}

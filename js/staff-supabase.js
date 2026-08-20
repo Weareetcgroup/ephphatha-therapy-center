@@ -4,11 +4,16 @@ const loadScript=(src,id)=>new Promise((resolve,reject)=>{
  if(document.getElementById(id))return resolve();
  const s=document.createElement('script');s.src=src;s.id=id;s.async=false;s.onload=resolve;s.onerror=()=>reject(new Error('Could not load '+src));document.body.appendChild(s);
 });
+const loadCss=(href,id)=>{
+ if(document.getElementById(id))return;
+ const l=document.createElement('link');l.rel='stylesheet';l.href=href;l.id=id;document.head.appendChild(l);
+};
 const waitFor=(test,timeout=10000)=>new Promise((resolve,reject)=>{
  const start=Date.now();const tick=()=>{if(test())return resolve();if(Date.now()-start>timeout)return reject(new Error('Ephphatha admin runtime did not initialize.'));setTimeout(tick,50)};tick();
 });
 (async()=>{
  try{
+  loadCss('css/app-responsive.css?v=7.2','eph-app-responsive');
   await loadScript('js/app.js','eph-app-runtime');
   await waitFor(()=>window.ephSupabase);
   if(document.body.dataset.app==='admin'){
