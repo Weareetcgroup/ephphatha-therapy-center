@@ -28,8 +28,14 @@ window.EPH_CONFIG = {
   ]
 };
 (()=>{
-  const s=document.createElement('script');
-  s.src='js/design-runtime.js?v=6.1';
-  s.async=false;
-  document.head.appendChild(s);
+ const load=(src,id)=>new Promise((resolve,reject)=>{
+  if(document.getElementById(id))return resolve();
+  const s=document.createElement('script');s.src=src;s.id=id;s.async=false;s.onload=resolve;s.onerror=()=>reject(new Error('Could not load '+src));document.head.appendChild(s);
+ });
+ (async()=>{
+  try{
+   await load('js/design-library.js?v=7.0','eph-design-library');
+   await load('js/design-runtime.js?v=7.0','eph-design-runtime');
+  }catch(e){console.warn('Ephphatha design layer could not load:',e);}
+ })();
 })();

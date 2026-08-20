@@ -14,8 +14,9 @@ const waitFor=(test,timeout=10000)=>new Promise((resolve,reject)=>{
   if(document.body.dataset.app==='admin'){
    await waitFor(()=>document.documentElement.dataset.ephAdminReady==='1');
    await loadScript('js/admin-cms.js?v=5.5','eph-admin-cms-runtime');
-   await loadScript('js/design-studio.js?v=6.1','eph-design-studio-runtime');
-   await loadScript('js/admin-media.js?v=6.1','eph-admin-media-runtime');
+   await loadScript('js/design-library.js?v=7.0','eph-design-library-admin');
+   await loadScript('js/design-studio.js?v=7.0','eph-design-studio-runtime');
+   await loadScript('js/admin-media.js?v=7.0','eph-admin-media-runtime');
   }
  }catch(err){
   const target=document.querySelector('#admin-message')||document.querySelector('#therapist-message');

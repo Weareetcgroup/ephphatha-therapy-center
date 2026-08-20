@@ -16,7 +16,7 @@ function install(){
  <div class="page-head"><div><h2>Brand & Team Media</h2><p>Upload the center logo, main website images and therapist profile photos. No GitHub editing required.</p></div><button class="btn btn-secondary" id="media-refresh">Refresh</button></div>
  <div class="panel" style="margin-bottom:20px"><h3>Center brand images</h3><p class="muted">Recommended: transparent PNG/WebP for logo; landscape JPG/WebP for hero images.</p><div class="media-grid" id="brand-media-grid"></div></div>
  <div class="panel" style="margin-bottom:20px"><h3>Team section</h3><form id="team-section-form" class="form-grid"><div class="field"><label>Show team on home page</label><select name="show_team"><option value="1">Yes</option><option value="0">No</option></select></div><div class="field"><label>Small label</label><input name="kicker" placeholder="Our team"></div><div class="field full"><label>Heading</label><input name="heading" placeholder="Meet the people behind the care."></div><div class="field full"><label>Introduction</label><textarea name="intro"></textarea></div><div class="field full"><button class="btn btn-primary">Save team section</button></div></form></div>
- <div class="panel"><div class="page-head" style="margin-bottom:14px"><div><h3>Therapist profile photos</h3><p>These photos appear below “Meet the people behind the care.”</p></div><button class="btn btn-secondary" type="button" id="go-therapists">Edit therapist details</button></div><div class="team-media-grid" id="team-media-grid"></div></div>`;app.appendChild(sec);}
+ <div class="panel"><div class="page-head" style="margin-bottom:14px"><div><h3>Therapist profile photos</h3><p>These photos appear below “Meet the people behind the care.” Diana Nixon’s therapist photo is also used as the About-page founder portrait when no separate Founder portrait is uploaded.</p></div><button class="btn btn-secondary" type="button" id="go-therapists">Edit therapist details</button></div><div class="team-media-grid" id="team-media-grid"></div></div>`;app.appendChild(sec);}
  b.onclick=()=>{$$('[data-view]').forEach(x=>x.classList.toggle('active',x===b));$$('[data-view-panel]').forEach(x=>x.classList.toggle('active',x===sec));$('#admin-title').textContent='Brand & Team Media';$('#app-side')?.classList.remove('open');};
  $('#go-therapists').onclick=()=>document.querySelector('[data-view="therapists"]')?.click();
  $('#media-refresh').onclick=loadAll;
@@ -30,6 +30,7 @@ function brandCards(){
   ['logo_url','Center logo','logo','Use transparent PNG/WebP when possible. The public header/footer logo updates from this.'],
   ['favicon_url','Browser icon / favicon','logo','Square image, ideally PNG.'],
   ['home_hero_url','Home hero image','image','Landscape therapy/center image shown in the main home hero.'],
+  ['founder_image_url','Founder portrait — Diana Nixon','image','Square or portrait image used in the About page founder circle. If left blank, Diana’s therapist profile photo is used automatically.'],
   ['online_image_url','Online Therapy image','image','Image used on the Online Therapy page.']
  ];
  root.innerHTML=defs.map(([key,title,type,help])=>`<div class="media-card" data-brand-card="${key}"><h4>${title}</h4><div class="media-preview ${type==='logo'?'logo':''}">${media[key]?`<img src="${esc(media[key])}" alt="">`:'<span class="muted">No image selected</span>'}</div><input type="file" data-brand-file="${key}" accept="image/png,image/jpeg,image/webp,image/gif"><div class="media-actions"><button class="btn btn-primary btn-sm" type="button" data-brand-upload="${key}">Upload / replace</button>${media[key]&&String(media[key]).startsWith('http')?`<button class="btn btn-secondary btn-sm" type="button" data-brand-clear="${key}">Clear</button>`:''}</div><div class="media-help">${help}</div></div>`).join('');
@@ -100,5 +101,5 @@ async function saveTeam(e){
  e.preventDefault();const f=e.target,value={kicker:f.elements.kicker.value.trim(),heading:f.elements.heading.value.trim(),intro:f.elements.intro.value.trim()};
  const r=await sb.from('settings').upsert([{key:'team_content',value},{key:'show_team',value:f.elements.show_team.value==='1'}],{onConflict:'key'});if(r.error)return msg(r.error.message,false);msg('Team section saved. Refresh the public website to see it.',true);
 }
-(async()=>{install();$('#team-section-form').onsubmit=saveTeam;await loadAll();document.documentElement.dataset.ephMediaManager='v6.1';})();
+(async()=>{install();$('#team-section-form').onsubmit=saveTeam;await loadAll();document.documentElement.dataset.ephMediaManager='v7';})();
 })();
