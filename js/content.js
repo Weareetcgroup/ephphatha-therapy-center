@@ -36,7 +36,7 @@ window.EPH_CONFIG = {
   try{
    await load('js/design-library.js?v=7.0','eph-design-library');
    await load('js/design-runtime.js?v=7.0','eph-design-runtime');
-   await load('js/responsive-runtime.js?v=7.2','eph-responsive-runtime');
+   await load('js/responsive-runtime.js?v=7.3','eph-responsive-runtime');
   }catch(e){console.warn('Ephphatha design/responsive layer could not load:',e);}
  })();
 })();

@@ -13,7 +13,7 @@ const waitFor=(test,timeout=10000)=>new Promise((resolve,reject)=>{
 });
 (async()=>{
  try{
-  loadCss('css/app-responsive.css?v=7.2','eph-app-responsive');
+  loadCss('css/app-responsive.css?v=7.3','eph-app-responsive-css');
   await loadScript('js/app.js','eph-app-runtime');
   await waitFor(()=>window.ephSupabase);
   if(document.body.dataset.app==='admin'){
